@@ -4,6 +4,7 @@ import cookieParser from 'cookie-parser';
 import { ENV } from './config/env.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import authRoutes from './modules/auth/auth.routes.js';
+import apisRoutes from './modules/apis/apis.routes.js';
 
 const app = express();
 
@@ -21,9 +22,12 @@ app.get('/api/health', (_req: Request, res: Response) => {
   res.status(200).json({ status: 'ok' });
 });
 
-// Auth module routes (api.md §3 base URL /api/v1)
+// Module routes
 app.use('/api/v1/auth', authRoutes);
-app.use('/api/auth', authRoutes); // convenient fallback
+app.use('/api/auth', authRoutes);
+
+app.use('/api/v1/apis', apisRoutes);
+app.use('/api/apis', apisRoutes);
 
 // Global error handler
 app.use(errorHandler);

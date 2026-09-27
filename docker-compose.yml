@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   app:
     build:
@@ -10,23 +8,32 @@ services:
     environment:
       - PORT=5000
       - NODE_ENV=development
-      - MONGODB_URI=mongodb://mongo:27017/sentrywatch
+      - MONGODB_URI=mongodb://mongo:27017/sentrywatch?replicaSet=rs0&directConnection=true
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - JWT_SECRET=super-secret-key-change-in-production
       - JWT_REFRESH_SECRET=super-refresh-secret-key-change-in-production
       - CLIENT_URL=http://localhost:5173
     depends_on:
-      - mongo
-      - redis
+      mongo:
+        condition: service_healthy
+      redis:
+        condition: service_started
     restart: unless-stopped
 
   mongo:
     image: mongo:6.0
+    command: ["--replSet", "rs0", "--bind_ip_all"]
     ports:
       - "27017:27017"
     volumes:
       - mongo-data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "try { rs.status().ok } catch (e) { rs.initiate({ _id: 'rs0', members: [{ _id: 0, host: 'localhost:27017' }] }).ok }"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
     restart: unless-stopped
 
   redis:
