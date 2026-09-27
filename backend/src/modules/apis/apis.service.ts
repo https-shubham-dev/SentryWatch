@@ -1,6 +1,7 @@
 import { Api, IApi, HttpMethod, AllowedIntervalSeconds } from '../../models/Api.js';
 import { CreateApiDto, UpdateApiDto } from '../../types/api.js';
 import { ValidationError, NotFoundError } from '../../middleware/errorHandler.js';
+import { scheduleApiCheck, removeApiCheck } from '../../workers/scheduler.js';
 
 export class ApisService {
   /**
@@ -22,7 +23,7 @@ export class ApisService {
   }
 
   /**
-   * Create new API configuration under current organization.
+   * Create new API configuration under current organization and register worker job.
    */
   async createApi(dto: CreateApiDto, organizationId: string): Promise<IApi> {
     this.validateCreateDto(dto);
@@ -39,11 +40,22 @@ export class ApisService {
       currentStatus: 'unknown',
     });
 
-    return api.save();
+    const savedApi = await api.save();
+
+    // Register BullMQ repeatable job if enabled
+    if (savedApi.enabled) {
+      try {
+        await scheduleApiCheck(savedApi);
+      } catch (err) {
+        console.error('[ApisService] Warning: Failed to schedule job on create:', err);
+      }
+    }
+
+    return savedApi;
   }
 
   /**
-   * Update existing API configuration.
+   * Update existing API configuration and update worker job schedule.
    */
   async updateApi(apiId: string, dto: UpdateApiDto, organizationId: string): Promise<IApi> {
     const api = await this.getApiById(apiId, organizationId);
@@ -68,16 +80,36 @@ export class ApisService {
     }
     if (dto.enabled !== undefined) api.enabled = dto.enabled;
 
-    return api.save();
+    const updatedApi = await api.save();
+
+    // Update job scheduling
+    try {
+      if (updatedApi.enabled) {
+        await scheduleApiCheck(updatedApi);
+      } else {
+        await removeApiCheck(apiId);
+      }
+    } catch (err) {
+      console.error('[ApisService] Warning: Failed to update job schedule on update:', err);
+    }
+
+    return updatedApi;
   }
 
   /**
-   * Delete API configuration without cascade-deleting checks or incidents.
+   * Delete API configuration and remove worker job without cascade-deleting checks or incidents.
    */
   async deleteApi(apiId: string, organizationId: string): Promise<void> {
     const result = await Api.deleteOne({ _id: apiId, organizationId });
     if (result.deletedCount === 0) {
       throw new NotFoundError('API not found');
+    }
+
+    // Stop scheduled monitoring job
+    try {
+      await removeApiCheck(apiId);
+    } catch (err) {
+      console.error('[ApisService] Warning: Failed to remove job schedule on delete:', err);
     }
   }
 
