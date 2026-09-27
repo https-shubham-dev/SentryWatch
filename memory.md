@@ -11,28 +11,33 @@ This file is the continuity anchor across AI sessions. Update it at the end of e
 
 ## Current State
 **Last updated:** 2026-09-27
-**Phase:** Step 1 (Scaffold) complete. Ready for Step 2 (Auth + Org).
+**Phase:** Step 2 (Auth + Org) complete. Ready for Step 3 (API Registry).
 
 ## Completed
 - [x] Full planning doc set (`prd.md` through `development-plan.md`) placed in `docs/`.
-- [x] Step 1: Scaffold repository structure:
-  - `git init` completed, `.gitignore` created.
-  - `backend/`: Express + TypeScript (`strict: true`), ESLint, Prettier, Jest, `/api/health` endpoint created & verified returning `200 { status: 'ok' }`.
-  - `frontend/`: Vite + React + TypeScript + Tailwind CSS configured with design tokens from `gen-design.md`.
-  - `docker-compose.yml` for `app`, `mongo`, and `redis`. `.env.example` and `.env` configured.
+- [x] Step 1: Scaffold repository structure (backend, frontend, docker-compose).
+- [x] Step 2: Auth + Org (`requirements.md` §1, `database.md` §2-3, `architecture.md` §5 & §7, `rules.md` §2 & §7):
+  - Mongoose models: `Organization` & `User` with indexed fields (`email` unique, `organizationId`).
+  - Auth module: `AuthService` (signup with atomic Org + User creation, login with bcrypt validation, refresh token, getMe profile restoration), `AuthController`, `auth.routes.ts`.
+  - Auth middleware (`authenticate`) + generic RBAC middleware (`requireRole('admin')`).
+  - JWT Access Token (15 min) + Refresh Token (7 days, httpOnly cookie).
+  - Frontend: `AuthContext` with in-memory access token storage, `apiClient` Axios instance with auto-refresh interceptor, `ProtectedRoute` wrapper, `LoginPage`, `SignupPage`, and `DashboardPage` styled per `gen-design.md`.
+  - Test suites & builds verified: 0 TypeScript compilation errors in backend/frontend, unit test suite passing.
 
 ## In Progress
-- Step 1 complete. Awaiting user verification before initiating Step 2.
+- Step 2 complete. Awaiting user verification before initiating Step 3.
 
 ## Next Up
-1. Step 2: Auth + Org (`development-plan.md` Step 2 & `requirements.md` §1):
-   - Mongoose models: `Organization`, `User`.
-   - `auth` module (routes → controller → service).
-   - JWT middleware + RBAC middleware.
-   - Frontend signup/login forms & token handling.
+1. Step 3: API Registry (`development-plan.md` Step 3 & `requirements.md` §2):
+   - Mongoose model: `Api` (`database.md` §4).
+   - `apis` module (CRUD following routes → controller → service → model shape).
+   - RBAC guard: `admin` only for create/update/delete.
+   - Frontend: API list table (dense Grafana/Linear layout per `gen-design.md` §4), add/edit API modal forms.
+   - Test checkpoint: create an API, see it in the list with `currentStatus: 'unknown'`.
 
 ## Decisions Made During Build (append here as they happen)
 - **Scaffold build setup:** Configured `tsx` for TypeScript execution in backend dev mode; configured Tailwind tokens (`ink-950`, `ink-900`, `ink-700`, `mist-400`, `mist-100`, `signal-blue`, `status-ok`, `status-warn`, `status-critical`, `status-resolved`) and Google Fonts (`Inter`, `JetBrains Mono`).
+- **Auth Architecture:** In-memory access token storage with httpOnly refresh token cookie. Dual support for Mongo replica set transactions and standalone Mongo fallback in development. Generic `requireRole` RBAC middleware created for immediate reusability in Step 3.
 
 ## Known Open Questions
 - Exact deadline for the MERN referral was never confirmed — `phase.md` currently assumes ~10-12 days. Revisit if that changes.
