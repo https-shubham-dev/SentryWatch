@@ -5,6 +5,7 @@ import { ENV } from './config/env.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import authRoutes from './modules/auth/auth.routes.js';
 import apisRoutes from './modules/apis/apis.routes.js';
+import incidentsRoutes from './modules/incidents/incidents.routes.js';
 
 const app = express();
 
@@ -28,6 +29,9 @@ app.use('/api/auth', authRoutes);
 
 app.use('/api/v1/apis', apisRoutes);
 app.use('/api/apis', apisRoutes);
+
+app.use('/api/v1/incidents', incidentsRoutes);
+app.use('/api/incidents', incidentsRoutes);
 
 // Global error handler
 app.use(errorHandler);
