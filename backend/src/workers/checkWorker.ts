@@ -117,36 +117,44 @@ export function startCheckWorker(): Worker {
       if (!anomalyResult.isAnomaly) {
         await resetConsecutiveAnomalyCount(apiId);
 
-        // If no active incident exists and check passed, recover status to 'ok'
         const openIncident = await Incident.findOne({
           apiId: api._id,
           status: { $ne: 'resolved' },
         });
 
-        if (!openIncident && api.currentStatus !== 'ok') {
-          api.currentStatus = 'ok';
-          await api.save();
+        const recent5 = [...priorRollingChecks, currentCheckMetric].slice(-5);
+        const failedInRecent5 = recent5.filter((c) => !c.passed).length;
+
+        if (!openIncident) {
+          // Pre-incident degradation trend (Workflow 3 Cycle 2: 2 failed out of 5 = 40%) -> 'warn'
+          if (failedInRecent5 >= 2 && api.currentStatus !== 'warn') {
+            api.currentStatus = 'warn';
+            await api.save();
+            console.info(`[Worker] Workflow 3 Cycle 2: API "${api.name}" degraded (2/5 failed) -> status set to 'warn'`);
+          } else if (failedInRecent5 < 2 && api.currentStatus !== 'ok') {
+            api.currentStatus = 'ok';
+            await api.save();
+          }
         }
       } else {
         // Anomaly detected! Increment consecutive cycle count
         const consecutiveCount = await incrementConsecutiveAnomalyCount(apiId);
 
         if (consecutiveCount === 1) {
-          // Cycle 1 of anomaly: set status -> 'warn' (Workflow 3 degradation trend)
+          // Cycle 3 (first confirmed anomaly): status remains 'warn'
           if (api.currentStatus !== 'warn' && api.currentStatus !== 'critical') {
             api.currentStatus = 'warn';
             await api.save();
-            console.info(`[Worker] Workflow 3 Cycle 1: API "${api.name}" degraded -> status set to 'warn'`);
+            console.info(`[Worker] Workflow 3 Cycle 3: Anomaly threshold crossed (1st cycle) -> status 'warn'`);
           }
         } else if (consecutiveCount >= 2) {
-          // Cycle 2+ of anomaly: "2 consecutive cycles" guard SATISFIED!
+          // Cycle 4 (second confirmed anomaly): "2 consecutive cycles" guard SATISFIED!
           const existingIncident = await Incident.findOne({
             apiId: api._id,
             status: { $ne: 'resolved' },
           });
 
           if (existingIncident) {
-            // Duplicate incident guard (requirements.md §5): attach new event to existing open incident
             existingIncident.events.push({
               status: existingIncident.status,
               timestamp: now,
@@ -155,7 +163,6 @@ export function startCheckWorker(): Worker {
             await existingIncident.save();
             console.info(`[Worker] Attached anomaly event to existing open incident (${existingIncident._id})`);
           } else {
-            // Create new Incident
             const newIncident = new Incident({
               apiId: api._id,
               organizationId: api.organizationId,
@@ -175,7 +182,6 @@ export function startCheckWorker(): Worker {
             console.info(`[Worker] Workflow 3 Guard Satisfied: Created new Incident (${newIncident._id}) - ${anomalyResult.reason}`);
           }
 
-          // Update denormalized currentStatus -> 'critical'
           if (api.currentStatus !== 'critical') {
             api.currentStatus = 'critical';
             await api.save();
