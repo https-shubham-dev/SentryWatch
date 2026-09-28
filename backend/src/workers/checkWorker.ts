@@ -74,8 +74,9 @@ export function startCheckWorker(): Worker {
       }
 
       // 1. Write Check document (Idempotency Key: apiId + scheduledTime)
+      let inserted = false;
       try {
-        await Check.updateOne(
+        const updateResult = await Check.updateOne(
           { apiId: api._id, scheduledTime },
           {
             $setOnInsert: {
@@ -90,14 +91,23 @@ export function startCheckWorker(): Worker {
           },
           { upsert: true },
         );
+        inserted = (updateResult.upsertedCount ?? 0) > 0;
       } catch (err: any) {
         if (err.code === 11000 || err.message?.includes('E11000')) {
           console.warn(
             `[Worker] Idempotency guard activated: Check already exists for API ${apiId} at ${scheduledTime.toISOString()}`,
           );
+          return;
         } else {
           throw err;
         }
+      }
+
+      if (!inserted) {
+        console.warn(
+          `[Worker] Idempotency guard activated (upsert matched existing doc): Check already exists for API ${apiId} at ${scheduledTime.toISOString()}`,
+        );
+        return;
       }
 
       // 2. Fetch rolling window metrics from Redis prior to this check

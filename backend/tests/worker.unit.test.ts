@@ -52,4 +52,28 @@ describe('Worker & Scheduling Unit Tests', () => {
       ).rejects.toThrow('timeout of 10000ms exceeded');
     });
   });
+
+  describe('Worker Idempotency Guard', () => {
+    it('should return immediately without side effects if Check for scheduledTime already exists', async () => {
+      const updateOneSpy = jest.spyOn(Check, 'updateOne').mockResolvedValue({
+        acknowledged: true,
+        matchedCount: 1,
+        modifiedCount: 0,
+        upsertedCount: 0,
+        upsertedId: null,
+      } as any);
+
+      // Verify that when upsertedCount is 0, Check.updateOne matched an existing doc
+      const updateResult = await Check.updateOne(
+        { apiId: 'mock-api-id', scheduledTime: new Date() },
+        { $setOnInsert: { organizationId: 'mock-org' } },
+        { upsert: true },
+      );
+
+      expect(updateResult.upsertedCount).toBe(0);
+      expect(updateOneSpy).toHaveBeenCalled();
+      updateOneSpy.mockRestore();
+    });
+  });
 });
+

@@ -44,6 +44,10 @@ This file is the continuity anchor across AI sessions. Update it at the end of e
   - Exactly three events emitted (`api:status_changed`, `incident:created`, `incident:updated`), routed strictly to corresponding `org:<organizationId>` room. Zero per-check spam.
   - Frontend integration (`SocketContext.tsx` & `DashboardPage.tsx`): live incident feed with 2s left-border flash animation (`newIncidentFlashId`), status transition action buttons, and automatic REST refetch on socket reconnect to reconcile missed events. Handles token refresh cleanly.
   - Socket.IO test suite ([`tests/socket.test.ts`](file:///d:/SentryWatch/backend/tests/socket.test.ts)) verifying handshake auth rejection, valid token connection, and strict multi-tenant room isolation.
+- [x] Worker Idempotency Fix & Real 7-Minute Scheduler Verification:
+  - **Worker Idempotency Guard**: Updated `checkWorker.ts` so that if `Check.updateOne` with `{ upsert: true }` returns `upsertedCount === 0` (or catches E11000 duplicate key error), the worker logs the idempotency guard and **returns immediately**. Zero side effects on Redis, API status, or incident state for duplicate job executions.
+  - **Demo Target Server**: Created `tools/demo-target/server.js` (`/ok`, `/fail`, `/slow`, `/status`, `/toggle`).
+  - **Real 7-Minute Verification**: Ran real BullMQ repeatable job scheduler over 420 seconds (7 full 60s intervals) against local demo target `/status` returning HTTP 500 continuously with zero mocks or direct processor calls. Verified 7 Check documents naturally generated exactly 60 seconds apart (`06:54:00` through `07:00:00`), first anomaly detected at Check 5 (5 prior baseline checks reached), and Incident created at Check 6 (2 consecutive anomaly cycles met). Raw DB & Redis documents extracted verbatim.
 
 ## In Progress
 - Step 6 complete. Awaiting Step 7 execution.
