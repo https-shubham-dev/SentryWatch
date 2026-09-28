@@ -11,7 +11,7 @@ This file is the continuity anchor across AI sessions. Update it at the end of e
 
 ## Current State
 **Last updated:** 2026-09-28
-**Phase:** Step 5 (Anomaly Detection + Incidents & Real Docker DB Verification) complete. Ready for Step 6 (Real-Time Layer).
+**Phase:** Step 6 (Real-Time Layer) complete. Ready for Step 7 (Incidents Workflow).
 
 ## Completed
 - [x] Full planning doc set (`prd.md` through `development-plan.md`) placed in `docs/`.
@@ -37,18 +37,19 @@ This file is the continuity anchor across AI sessions. Update it at the end of e
   - `IncidentsService` ([`src/modules/incidents/incidents.service.ts`](file:///d:/SentryWatch/backend/src/modules/incidents/incidents.service.ts)) enforcing valid lifecycle transitions (`detected->investigating`, `investigating->mitigated`, `mitigated->resolved`, `investigating->resolved`) and server-side resolve guard (requires API to pass last check).
   - **Real DB Verification (Docker Mongo + Redis):** Executed real health check pipeline against Docker MongoDB and Redis without mocks. Deleted mock narration scripts. Extracted raw MongoDB documents showing Check documents (`scheduledTime`, `executedAt`, `statusCode`, `errorType`), API denormalized `currentStatus` (`critical`), and `incidents` collection with embedded `events` array.
   - **Reconciled Workflows.md:** Documented Scenario A (Warm API with established baseline) vs Scenario B (Cold-Start API failing from check 1). For cold-start APIs, failure rate anomaly fires at Cycle 5 (when baseline reaches 5 checks), and Incident is created at Cycle 6 (when 2-cycle consecutive guard is satisfied).
+- [x] Step 6: Real-Time Layer (`requirements.md` §6, `api.md` Socket.IO contract, `architecture.md` §6, `development-plan.md` Step 6):
+  - Socket.IO server attached to HTTP server ([`src/sockets/incidentSocket.ts`](file:///d:/SentryWatch/backend/src/sockets/incidentSocket.ts)).
+  - Handshake JWT authentication verifying access token and assigning socket to room `org:<organizationId>`. Token-derived org ID only (never client-supplied).
+  - Redis Pub/Sub event bus ([`src/sockets/redisPubSub.ts`](file:///d:/SentryWatch/backend/src/sockets/redisPubSub.ts)) channel `sentrywatch:events` for cross-process event broadcasting from BullMQ worker processes to Socket.IO connected clients.
+  - Exactly three events emitted (`api:status_changed`, `incident:created`, `incident:updated`), routed strictly to corresponding `org:<organizationId>` room. Zero per-check spam.
+  - Frontend integration (`SocketContext.tsx` & `DashboardPage.tsx`): live incident feed with 2s left-border flash animation (`newIncidentFlashId`), status transition action buttons, and automatic REST refetch on socket reconnect to reconcile missed events. Handles token refresh cleanly.
+  - Socket.IO test suite ([`tests/socket.test.ts`](file:///d:/SentryWatch/backend/tests/socket.test.ts)) verifying handshake auth rejection, valid token connection, and strict multi-tenant room isolation.
 
 ## In Progress
-- Step 5 complete and verified against real Docker database. Awaiting Step 6 execution.
+- Step 6 complete. Awaiting Step 7 execution.
 
 ## Next Up
-1. Step 6: Real-Time Layer (`development-plan.md` Step 6 & `requirements.md` §6):
-   - Socket.IO server setup with JWT authentication middleware (`sockets/incidentSocket.ts`).
-   - Room join on `org:<id>` for tenant isolation (`architecture.md` §6).
-   - Emit `api:status_changed`, `incident:created`, `incident:updated` events.
-   - Cross-process event publishing via Redis Pub/Sub (so worker process events reach Socket.IO clients).
-   - Frontend Socket.IO client integration in `AuthContext` / Dashboard.
-   - Test checkpoint: multi-tab live update without refresh.
+1. Step 7: Incidents Workflow & UI (`development-plan.md` Step 7 & `requirements.md` §5).
 
 ## Decisions Made During Build (append here as they happen)
 - **Scaffold build setup:** Configured `tsx` for TypeScript execution in backend dev mode; configured Tailwind tokens (`ink-950`, `ink-900`, `ink-700`, `mist-400`, `mist-100`, `signal-blue`, `status-ok`, `status-warn`, `status-critical`, `status-resolved`) and Google Fonts (`Inter`, `JetBrains Mono`).

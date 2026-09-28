@@ -1,3 +1,5 @@
+import { EventEmitter } from 'events';
+
 jest.mock('bullmq', () => {
   return {
     Queue: jest.fn().mockImplementation(() => ({
@@ -16,10 +18,24 @@ jest.mock('bullmq', () => {
   };
 });
 
+const redisEmitter = new EventEmitter();
+
 jest.mock('ioredis', () => {
-  return jest.fn().mockImplementation(() => ({
-    on: jest.fn(),
-    quit: jest.fn().mockResolvedValue('OK'),
-    disconnect: jest.fn().mockResolvedValue(undefined),
-  }));
+  return jest.fn().mockImplementation(() => {
+    return {
+      on: (event: string, listener: (...args: any[]) => void) => {
+        redisEmitter.on(event, listener);
+      },
+      subscribe: (_channel: string, callback?: (err: Error | null, count?: number) => void) => {
+        if (callback) callback(null, 1);
+      },
+      publish: (channel: string, message: string) => {
+        redisEmitter.emit('message', channel, message);
+        return Promise.resolve(1);
+      },
+      quit: jest.fn().mockResolvedValue('OK'),
+      disconnect: jest.fn().mockResolvedValue(undefined),
+    };
+  });
 });
+

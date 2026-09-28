@@ -12,6 +12,7 @@ import {
   incrementConsecutiveAnomalyCount,
   resetConsecutiveAnomalyCount,
 } from '../modules/anomaly/rollingWindow.js';
+import { publishSystemEvent } from '../sockets/redisPubSub.js';
 
 interface CheckJobData {
   apiId: string;
@@ -20,7 +21,8 @@ interface CheckJobData {
 
 /**
  * Worker process executing scheduled HTTP health checks against registered APIs,
- * running anomaly detection, maintaining Redis rolling stats, and managing incidents.
+ * running anomaly detection, maintaining Redis rolling stats, managing incidents,
+ * and emitting real-time events via Redis Pub/Sub.
  */
 export function startCheckWorker(): Worker {
   const worker = new Worker<CheckJobData>(
@@ -113,6 +115,25 @@ export function startCheckWorker(): Worker {
       // 3. Run pure anomaly detection (rules.md §6)
       const anomalyResult = detectAnomaly(priorRollingChecks, currentCheckMetric);
 
+      // Helper for status change emission
+      const setAndEmitApiStatus = async (newStatus: 'ok' | 'warn' | 'critical') => {
+        if (api.currentStatus !== newStatus) {
+          api.currentStatus = newStatus;
+          await api.save();
+
+          await publishSystemEvent({
+            type: 'api:status_changed',
+            organizationId: api.organizationId.toString(),
+            payload: {
+              id: api._id.toString(),
+              name: api.name,
+              currentStatus: newStatus,
+              updatedAt: api.updatedAt.toISOString(),
+            },
+          });
+        }
+      };
+
       // 4. Workflow 3 Lifecycle & Status Guard Logic
       if (!anomalyResult.isAnomaly) {
         await resetConsecutiveAnomalyCount(apiId);
@@ -126,29 +147,18 @@ export function startCheckWorker(): Worker {
         const failedInRecent5 = recent5.filter((c) => !c.passed).length;
 
         if (!openIncident) {
-          // Pre-incident degradation trend (Workflow 3 Cycle 2: 2 failed out of 5 = 40%) -> 'warn'
-          if (failedInRecent5 >= 2 && api.currentStatus !== 'warn') {
-            api.currentStatus = 'warn';
-            await api.save();
-            console.info(`[Worker] Workflow 3 Cycle 2: API "${api.name}" degraded (2/5 failed) -> status set to 'warn'`);
-          } else if (failedInRecent5 < 2 && api.currentStatus !== 'ok') {
-            api.currentStatus = 'ok';
-            await api.save();
+          if (failedInRecent5 >= 2) {
+            await setAndEmitApiStatus('warn');
+          } else if (failedInRecent5 < 2) {
+            await setAndEmitApiStatus('ok');
           }
         }
       } else {
-        // Anomaly detected! Increment consecutive cycle count
         const consecutiveCount = await incrementConsecutiveAnomalyCount(apiId);
 
         if (consecutiveCount === 1) {
-          // Cycle 3 (first confirmed anomaly): status remains 'warn'
-          if (api.currentStatus !== 'warn' && api.currentStatus !== 'critical') {
-            api.currentStatus = 'warn';
-            await api.save();
-            console.info(`[Worker] Workflow 3 Cycle 3: Anomaly threshold crossed (1st cycle) -> status 'warn'`);
-          }
+          await setAndEmitApiStatus('warn');
         } else if (consecutiveCount >= 2) {
-          // Cycle 4 (second confirmed anomaly): "2 consecutive cycles" guard SATISFIED!
           const existingIncident = await Incident.findOne({
             apiId: api._id,
             status: { $ne: 'resolved' },
@@ -161,7 +171,12 @@ export function startCheckWorker(): Worker {
               triggeredBy: 'system',
             });
             await existingIncident.save();
-            console.info(`[Worker] Attached anomaly event to existing open incident (${existingIncident._id})`);
+
+            await publishSystemEvent({
+              type: 'incident:updated',
+              organizationId: api.organizationId.toString(),
+              payload: existingIncident,
+            });
           } else {
             const newIncident = new Incident({
               apiId: api._id,
@@ -179,13 +194,15 @@ export function startCheckWorker(): Worker {
               ],
             });
             await newIncident.save();
-            console.info(`[Worker] Workflow 3 Guard Satisfied: Created new Incident (${newIncident._id}) - ${anomalyResult.reason}`);
+
+            await publishSystemEvent({
+              type: 'incident:created',
+              organizationId: api.organizationId.toString(),
+              payload: newIncident,
+            });
           }
 
-          if (api.currentStatus !== 'critical') {
-            api.currentStatus = 'critical';
-            await api.save();
-          }
+          await setAndEmitApiStatus('critical');
         }
       }
 

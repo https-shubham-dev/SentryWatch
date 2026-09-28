@@ -2,6 +2,7 @@ import { Incident, IIncident, IncidentStatus } from '../../models/Incident.js';
 import { Api } from '../../models/Api.js';
 import { Check } from '../../models/Check.js';
 import { ConflictError, NotFoundError, ValidationError } from '../../middleware/errorHandler.js';
+import { publishSystemEvent } from '../../sockets/redisPubSub.js';
 
 export class IncidentsService {
   /**
@@ -59,12 +60,30 @@ export class IncidentsService {
 
     const savedIncident = await incident.save();
 
-    // If incident resolved, update denormalized api.currentStatus to 'ok'
+    // Emit incident:updated event to room
+    await publishSystemEvent({
+      type: 'incident:updated',
+      organizationId,
+      payload: savedIncident,
+    });
+
+    // If incident resolved, update denormalized api.currentStatus to 'ok' and emit api:status_changed
     if (newStatus === 'resolved') {
       const api = await Api.findById(incident.apiId);
-      if (api) {
+      if (api && api.currentStatus !== 'ok') {
         api.currentStatus = 'ok';
         await api.save();
+
+        await publishSystemEvent({
+          type: 'api:status_changed',
+          organizationId,
+          payload: {
+            id: api._id.toString(),
+            name: api.name,
+            currentStatus: 'ok',
+            updatedAt: api.updatedAt.toISOString(),
+          },
+        });
       }
     }
 
