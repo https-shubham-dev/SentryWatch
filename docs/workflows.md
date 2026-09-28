@@ -33,37 +33,63 @@ Scheduler fires job for API X
 
 ## Workflow 3: An Incident Happens (the core demo flow)
 
+There are two operational cases for anomaly evaluation:
+
+### Scenario A: Warm API (Established Healthy Baseline $\ge 5$ prior checks)
 ```
-API Y starts failing (e.g., deliberately pointed at a dead endpoint for demo)
+API Y (previously healthy for 5+ checks) starts failing:
 
 Check cycle 1:
    Worker → 500 response / timeout
    → Check written (passed: false)
-   → Anomaly detection: failure rate over last 5 checks now 20% → below 60% threshold
-   → No incident yet, no status change
+   → Anomaly detection: failure rate over last 5 checks is 1/5 = 20% → below 60% threshold
+   → No incident yet, currentStatus remains 'ok'
 
 Check cycle 2 (interval later):
    Worker → still failing
    → Check written (passed: false)
-   → Anomaly detection: failure rate now 40% → still below threshold
-   → apis.currentStatus: 'ok' → 'warn' (worker detects degradation trend even pre-incident)
+   → Anomaly detection: failure rate in last 5 checks is 2/5 = 40% → below 60% threshold
+   → Worker detects degradation trend (2/5 failed) → apis.currentStatus: 'ok' → 'warn'
    → Socket event: api:status_changed → dashboard row turns amber
 
 Check cycle 3:
    Worker → still failing
-   → failure rate now 60% → THRESHOLD CROSSED
-   → Anomaly confirmed → check "2 consecutive anomaly cycles" guard
-   → This is cycle 1 of the guard (first confirmed anomaly) → not yet enough, logged as warning
+   → Check written (passed: false)
+   → Failure rate in last 5 checks is 3/5 = 60% → ANOMALY THRESHOLD CROSSED
+   → 2-Consecutive-Cycle Guard: Cycle 1 of 2 → logged as warning, status remains 'warn'
 
 Check cycle 4:
    Worker → still failing
-   → Anomaly confirmed again → this is cycle 2 → GUARD SATISFIED
-   → Incident created: status 'detected', severity derived from failure rate/latency
-   → apis.currentStatus → 'critical'
+   → Check written (passed: false)
+   → Failure rate in last 5 checks is 4/5 = 80% → ANOMALY CONFIRMED AGAIN
+   → 2-Consecutive-Cycle Guard: Cycle 2 of 2 → GUARD SATISFIED!
+   → Incident created in MongoDB (status: 'detected', severity: 'high', reason: "Failure rate over last 5 checks is 80% (4/5 failed)")
+   → apis.currentStatus: 'warn' → 'critical'
    → Socket event: incident:created → dashboard incident feed updates instantly, row flashes red
 ```
 
-**This exact sequence is what you should be able to narrate live in an interview or demo** — it's the single most important workflow in the whole project because it proves every architectural decision (queue, anomaly detection, guard logic, real-time push) working together.
+### Scenario B: Cold-Start API (Newly registered API failing from check 1)
+```
+API Z (brand-new, no prior baseline checks) is registered pointing at a failing endpoint (500):
+
+Check cycles 1–4:
+   → Baseline Guard Active (requires at least 5 total checks in history before evaluating failure rate anomaly).
+   → Prevents false-positive incident creation on initial blips before baseline is established.
+   → Cycle 2 detects degradation trend (2 failed in last 5) → apis.currentStatus: 'ok' → 'warn'.
+
+Check cycle 5:
+   → 5 total checks complete (5/5 failed = 100%). Baseline guard satisfied.
+   → Anomaly detection fires: 5/5 failed (100%) ≥ 60% threshold → ANOMALY THRESHOLD CROSSED.
+   → 2-Consecutive-Cycle Guard: Cycle 1 of 2. Status remains 'warn'.
+
+Check cycle 6:
+   → 6 total checks complete (5/5 failed in last 5 window = 100%).
+   → 2-Consecutive-Cycle Guard: Cycle 2 of 2 → GUARD SATISFIED!
+   → Incident created in MongoDB (status: 'detected', severity: 'high', reason: "Failure rate over last 5 checks is 100% (5/5 failed)").
+   → apis.currentStatus: 'warn' → 'critical'.
+```
+
+**This exact sequence is what you should be able to narrate live in an interview or demo** — it's the single most important workflow in the whole project because it proves every architectural decision (queue, anomaly detection, baseline guard, 2-cycle guard, real-time push) working together.
 
 ## Workflow 4: Developer Investigates and Resolves
 
@@ -98,6 +124,4 @@ API returns 404 for a request
    → Correlation check runs: does Order API depend on Payment API? (apiDependencies)
         → Yes, AND both incidents detected within 10-minute window
    → Incident B gets relatedIncidentIds: [Incident A._id] (and vice versa)
-   → Dashboard shows Incident B with a "Possibly related to Incident A (Payment API)" link
 ```
-No incidents are merged or auto-resolved by correlation — it's purely informational, per `requirements.md` §8.
