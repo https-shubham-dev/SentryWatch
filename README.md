@@ -94,7 +94,6 @@ cd backend && npm test
 ## 🔮 Future Improvements
 - **Email verification & 2FA** — out of scope for MVP; requires an email/SMS provider we don't have yet.
 - **Refresh token revocation** — logout currently clears the httpOnly cookie only; a stolen refresh JWT remains valid until expiry. A server-side denylist or rotation scheme belongs in a later hardening pass.
-- **Authenticated-route rate limit** — `api.md` documents 100 req/min per user; auth routes are limited today, general API limiting is still outstanding.
 
 ---
 

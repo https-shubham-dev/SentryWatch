@@ -6,10 +6,11 @@ Module-by-module detail, expanding on `prd.md`. Each locked decision exists to r
 
 **Requirements:**
 - Signup creates a User **and** an Organization (the signing-up user becomes that org's `admin`) in one transaction.
+- Signup email must match a basic format check (`local@domain.tld`); invalid emails are rejected with a validation error (not only HTML `type=email` on the client).
 - Signup password must be at least 8 characters and include at least one letter and one number; weak passwords are rejected with a clear validation error (not silently accepted).
 - Login returns access token (15 min expiry) + refresh token (7 days, httpOnly cookie).
 - After 5 consecutive failed login attempts for an email, that account is locked for 15 minutes (Redis-backed); further attempts return `429` with a clear lockout message. Counter clears on successful login.
-- `/auth/login` and `/auth/signup` are rate-limited to 5 requests/minute per IP.
+- `/auth/login` and `/auth/signup` are rate-limited to 5 requests/minute per IP. Authenticated API routes are limited to 100 requests/minute per user.
 - `/auth/me` returns current user + org context, used by frontend on app load to restore session.
 - Invite flow: admin can invite a member by email (Phase 2 — Phase 1 ships with manual org membership only, since a full invite/email system is out of scope for MVP).
 

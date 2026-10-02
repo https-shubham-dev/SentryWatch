@@ -1,6 +1,7 @@
 import express, { Request, Response } from 'express';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
+import helmet from 'helmet';
 import { ENV } from './config/env.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import authRoutes from './modules/auth/auth.routes.js';
@@ -8,6 +9,14 @@ import apisRoutes from './modules/apis/apis.routes.js';
 import incidentsRoutes from './modules/incidents/incidents.routes.js';
 
 const app = express();
+
+// Security headers (CSP, X-Frame-Options, X-Content-Type-Options, etc.)
+app.use(
+  helmet({
+    // SPA on a different origin (Vercel) calls this API — allow cross-origin reads
+    crossOriginResourcePolicy: { policy: 'cross-origin' },
+  }),
+);
 
 app.use(
   cors({
@@ -18,7 +27,7 @@ app.use(
 app.use(express.json());
 app.use(cookieParser());
 
-// Health check endpoint
+// Health check endpoint (unauthenticated, not rate-limited beyond infra)
 app.get('/api/health', (_req: Request, res: Response) => {
   res.status(200).json({ status: 'ok' });
 });

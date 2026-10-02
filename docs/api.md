@@ -21,7 +21,7 @@ Base URL: `/api/v1`. All authenticated routes require `Authorization: Bearer <ac
 
 | Method | Path | Body | Notes |
 |---|---|---|---|
-| POST | `/auth/signup` | `{ email, password, orgName }` | Creates User (admin) + Organization. Password must be ≥8 chars with at least one letter and one number (400 if not). Rate limited. |
+| POST | `/auth/signup` | `{ email, password, orgName }` | Creates User (admin) + Organization. Email must be a valid format (400 if not). Password must be ≥8 chars with at least one letter and one number (400 if not). Rate limited. |
 | POST | `/auth/login` | `{ email, password }` | Returns `{ accessToken }`, sets refresh cookie. After 5 consecutive failed attempts for an email, account is locked 15 minutes (429). Rate limited. |
 | POST | `/auth/refresh` | — (cookie) | Returns new `{ accessToken }` |
 | POST | `/auth/logout` | — | Clears refresh cookie |
@@ -88,7 +88,7 @@ Incidents are never created via API — only the worker's anomaly detection crea
 ## Rate Limiting
 - `/auth/login`, `/auth/signup`: 5 requests/minute per IP (separate buckets per path; dual mounts `/api/v1/auth` and `/api/auth` share the same bucket). Implemented with `express-rate-limit` + Redis store in non-test environments.
 - Account lockout (login only): 5 consecutive failed password attempts for an email → 15-minute lock stored in Redis (`auth:lock:<email>`). Returns `429` with a clear message.
-- All other authenticated routes: 100 requests/minute per user (generous — this protects against runaway frontend bugs, not normal usage). *Not yet implemented — tracked as future hardening.*
+- All other authenticated routes (`/apis/*`, `/incidents/*`, `/auth/me`): 100 requests/minute per user (keyed by JWT `userId`; falls back to IP if unauthenticated). Protects against runaway frontend bugs.
 
 ## Explainability Checklist for this file
 1. Why incidents have no `POST` endpoint — enforces that they're only ever system-derived, not fabricated by a client.

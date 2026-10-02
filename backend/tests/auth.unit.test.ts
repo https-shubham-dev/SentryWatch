@@ -22,6 +22,16 @@ describe('AuthService Unit Tests', () => {
   });
 
   describe('signup', () => {
+    it('should throw ValidationError if email format is invalid', async () => {
+      await expect(
+        authService.signup({
+          email: 'not-an-email',
+          password: 'password123',
+          orgName: 'Acme',
+        }),
+      ).rejects.toThrow('Invalid email format');
+    });
+
     it('should throw ValidationError if password is too short', async () => {
       await expect(
         authService.signup({

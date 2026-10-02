@@ -2,12 +2,14 @@ import { Router } from 'express';
 import { ApisController } from './apis.controller.js';
 import { authenticate } from '../../middleware/auth.js';
 import { requireRole } from '../../middleware/rbac.js';
+import { apiRateLimiter } from '../../middleware/rateLimit.js';
 
 const router = Router();
 const controller = new ApisController();
 
-// All routes require valid JWT authentication
+// All routes require valid JWT authentication + 100 req/min per user
 router.use(authenticate);
+router.use(apiRateLimiter);
 
 router.get('/', (req, res, next) => controller.getApis(req, res, next));
 router.get('/:id', (req, res, next) => controller.getApiById(req, res, next));

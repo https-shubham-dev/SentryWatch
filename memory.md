@@ -11,7 +11,7 @@ This file is the continuity anchor across AI sessions. Update it at the end of e
 
 ## Current State
 **Last updated:** 2026-10-01
-**Phase:** Auth hardening + PDF export + UI polish complete.
+**Phase:** Auth hardening + PDF + UI polish shipped; Helmet + 100/min API rate limit + signup email validation added.
 
 ## Live Deployment Endpoints
 - **Frontend SPA (Vercel)**: `https://sentrywatch.vercel.app`
@@ -61,6 +61,10 @@ This file is the continuity anchor across AI sessions. Update it at the end of e
   - Design tokens + utility classes in `index.css` (`sw-panel`, `sw-input`, `sw-btn-primary`, incident flash keyframe).
   - Dashboard sticky header with brand mark; panels use shared surface treatment; softer grid opacity.
   - Custom favicon matching signal-blue mark.
+- [x] Security follow-up:
+  - Helmet middleware (CSP, X-Frame-Options, etc.) with `crossOriginResourcePolicy: cross-origin` for Vercel SPA.
+  - Authenticated routes 100 req/min per user (`apiRateLimiter` on `/apis`, `/incidents`, `/auth/me`).
+  - Signup email format regex validation (`Invalid email format`).
 
 ### Strictly Chronological Resulting Incident MongoDB Document (Verbatim)
 ```json

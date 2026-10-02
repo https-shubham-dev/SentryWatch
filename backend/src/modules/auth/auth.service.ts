@@ -10,6 +10,9 @@ import { assertNotLocked, recordFailedLogin, clearLoginFailures } from './loginL
 const PASSWORD_RULE_MESSAGE =
   'Password must be at least 8 characters and include a letter and a number';
 
+/** Practical email shape check (not full RFC). Rejects spaces and missing domain. */
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 export class AuthService {
   /**
    * Signup creates a User (admin) + Organization together atomically.
@@ -173,6 +176,9 @@ export class AuthService {
   private validateSignupDto(dto: SignupDto) {
     if (!dto.email || !dto.password || !dto.orgName) {
       throw new ValidationError('Email, password, and orgName are required');
+    }
+    if (!EMAIL_REGEX.test(dto.email.trim())) {
+      throw new ValidationError('Invalid email format');
     }
     if (
       dto.password.length < 8 ||
