@@ -8,12 +8,12 @@ Base URL: `/api/v1`. All authenticated routes require `Authorization: Bearer <ac
 ```
 {
   "error": {
-    "code": "NOT_FOUND" | "VALIDATION_ERROR" | "UNAUTHORIZED" | "FORBIDDEN" | "CONFLICT",
+    "code": "NOT_FOUND" | "VALIDATION_ERROR" | "UNAUTHORIZED" | "FORBIDDEN" | "CONFLICT" | "RATE_LIMITED",
     "message": "Human-readable explanation"
   }
 }
 ```
-- Standard status codes: `200` (ok), `201` (created), `400` (validation), `401` (missing/invalid token), `403` (wrong role/org), `404` (not found), `409` (conflict — e.g., invalid incident transition).
+- Standard status codes: `200` (ok), `201` (created), `400` (validation), `401` (missing/invalid token), `403` (wrong role/org), `404` (not found), `409` (conflict — e.g., invalid incident transition), `429` (rate limited / account lockout).
 - All list endpoints support `?page=&limit=` (default `limit=20`).
 - No endpoint ever accepts a client-supplied `organizationId` — it's always derived server-side from the JWT (per `architecture.md` §7 security notes).
 
@@ -21,8 +21,8 @@ Base URL: `/api/v1`. All authenticated routes require `Authorization: Bearer <ac
 
 | Method | Path | Body | Notes |
 |---|---|---|---|
-| POST | `/auth/signup` | `{ email, password, orgName }` | Creates User (admin) + Organization |
-| POST | `/auth/login` | `{ email, password }` | Returns `{ accessToken }`, sets refresh cookie |
+| POST | `/auth/signup` | `{ email, password, orgName }` | Creates User (admin) + Organization. Password must be ≥8 chars with at least one letter and one number (400 if not). Rate limited. |
+| POST | `/auth/login` | `{ email, password }` | Returns `{ accessToken }`, sets refresh cookie. After 5 consecutive failed attempts for an email, account is locked 15 minutes (429). Rate limited. |
 | POST | `/auth/refresh` | — (cookie) | Returns new `{ accessToken }` |
 | POST | `/auth/logout` | — | Clears refresh cookie |
 | GET | `/auth/me` | — | Returns `{ user, organization }` |
@@ -37,6 +37,7 @@ Base URL: `/api/v1`. All authenticated routes require `Authorization: Bearer <ac
 | PATCH | `/apis/:id` | admin | Update fields (including `enabled` toggle → adds/removes scheduled job) |
 | DELETE | `/apis/:id` | admin | Removes job, keeps historical checks/incidents |
 | GET | `/apis/:id/checks` | any | Paginated check history, `?limit=` recent checks |
+| GET | `/apis/:id/checks/export` | any | PDF export of check history (default last 100 checks; optional `?from=&to=` ISO range). Dark ink/mist themed. `Content-Type: application/pdf` |
 | GET | `/apis/:id/stats` | any | Current rolling avg latency, failure rate (reads from Redis, falls back to Mongo aggregation if cache miss) |
 
 ## Incidents
@@ -85,8 +86,9 @@ Incidents are never created via API — only the worker's anomaly detection crea
 **Client → Server:** none in MVP — this is intentionally one-directional (server pushes, client only listens). No client-initiated socket events needed since all mutations go through REST (`PATCH /incidents/:id/status`, etc.) — keeps the real-time layer simple and the audit trail (who changed what) goes through normal authenticated REST rather than a socket event that's harder to validate/log consistently.
 
 ## Rate Limiting
-- `/auth/login`, `/auth/signup`: 5 requests/minute per IP.
-- All other authenticated routes: 100 requests/minute per user (generous — this protects against runaway frontend bugs, not normal usage).
+- `/auth/login`, `/auth/signup`: 5 requests/minute per IP (separate buckets per path; dual mounts `/api/v1/auth` and `/api/auth` share the same bucket). Implemented with `express-rate-limit` + Redis store in non-test environments.
+- Account lockout (login only): 5 consecutive failed password attempts for an email → 15-minute lock stored in Redis (`auth:lock:<email>`). Returns `429` with a clear message.
+- All other authenticated routes: 100 requests/minute per user (generous — this protects against runaway frontend bugs, not normal usage). *Not yet implemented — tracked as future hardening.*
 
 ## Explainability Checklist for this file
 1. Why incidents have no `POST` endpoint — enforces that they're only ever system-derived, not fabricated by a client.

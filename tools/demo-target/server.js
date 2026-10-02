@@ -35,7 +35,7 @@ app.get('/status', (_req, res) => {
   }
 });
 
-app.listen(PORT, () => {
+app.listen(PORT, '0.0.0.0', () => {
   console.log(`[DemoTarget] Local target server running on http://localhost:${PORT}`);
   console.log(`  GET /ok       => HTTP 200`);
   console.log(`  GET /fail     => HTTP 500`);

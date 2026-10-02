@@ -2,10 +2,125 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  --ink-950: #0a0e14;
+  --ink-900: #121821;
+  --ink-800: #1a2330;
+  --ink-700: #293241;
+  --mist-400: #8b96a5;
+  --mist-100: #e8ecf1;
+  --signal-blue: #4c8dff;
+  --status-ok: #3dd68c;
+  --status-warn: #f5b84c;
+  --status-critical: #f0563d;
+  --status-resolved: #6c7a91;
+}
+
 @layer base {
   body {
-    background-color: #0A0E14;
-    color: #E8ECF1;
+    background-color: var(--ink-950);
+    color: var(--mist-100);
     font-family: 'Inter', sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  ::selection {
+    background: color-mix(in srgb, var(--signal-blue) 40%, transparent);
+    color: white;
+  }
+
+  input,
+  select,
+  textarea,
+  button {
+    border-radius: 0;
+  }
+}
+
+@layer components {
+  /* Technical atmosphere: faint grid + cool radial depth (ink/signal only) */
+  .sw-atmosphere {
+    background-color: var(--ink-950);
+    background-image:
+      radial-gradient(ellipse 90% 55% at 50% -15%, color-mix(in srgb, var(--signal-blue) 16%, transparent), transparent 60%),
+      linear-gradient(color-mix(in srgb, var(--ink-700) 35%, transparent) 1px, transparent 1px),
+      linear-gradient(90deg, color-mix(in srgb, var(--ink-700) 35%, transparent) 1px, transparent 1px);
+    background-size: auto, 56px 56px, 56px 56px;
+    background-position: center, center, center;
+  }
+
+  .sw-panel {
+    @apply bg-ink-900 border border-ink-700;
+  }
+
+  .sw-input {
+    @apply w-full bg-ink-950 border border-ink-700 px-3 py-2 text-[13px] text-mist-100
+      placeholder:text-mist-400/50
+      focus:outline-none focus:border-signal-blue focus:ring-1 focus:ring-signal-blue/30;
+  }
+
+  .sw-input-mono {
+    @apply sw-input font-mono;
+  }
+
+  .sw-label {
+    @apply block text-[12px] text-mist-400 mb-1.5;
+  }
+
+  .sw-btn-primary {
+    @apply bg-signal-blue text-white font-medium text-[13px] py-2 px-4
+      hover:brightness-110 active:brightness-95
+      disabled:opacity-50 disabled:pointer-events-none
+      transition-[filter] duration-150;
+  }
+
+  .sw-btn-ghost {
+    @apply bg-ink-950 border border-ink-700 text-mist-400 text-[13px] py-1.5 px-3
+      hover:border-mist-400 hover:text-mist-100
+      transition-colors duration-150;
+  }
+
+  .sw-brand-mark {
+    width: 2.25rem;
+    height: 2.25rem;
+    border: 1px solid color-mix(in srgb, var(--signal-blue) 40%, transparent);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--signal-blue);
+    background: color-mix(in srgb, var(--signal-blue) 12%, transparent);
+  }
+
+  /* §6 deliberate motion — incident arrival left-edge flash */
+  @keyframes sw-incident-flash {
+    0% {
+      box-shadow: inset 3px 0 0 0 var(--status-critical);
+    }
+    100% {
+      box-shadow: inset 3px 0 0 0 transparent;
+    }
+  }
+
+  .sw-incident-flash {
+    animation: sw-incident-flash 200ms ease-out;
+  }
+
+  @keyframes sw-fade-up {
+    from {
+      opacity: 0;
+      transform: translateY(6px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .sw-enter {
+    animation: sw-fade-up 280ms ease-out both;
+  }
+
+  .sw-enter-delay {
+    animation: sw-fade-up 320ms ease-out 60ms both;
   }
 }

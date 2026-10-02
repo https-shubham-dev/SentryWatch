@@ -8,8 +8,17 @@ export class IncidentsController {
     try {
       const organizationId = req.user!.organizationId;
       const status = req.query.status as string | undefined;
+      const severity = req.query.severity as string | undefined;
+      const page = parseInt((req.query.page as string) || '1', 10);
+      const limit = parseInt((req.query.limit as string) || '20', 10);
 
-      const incidents = await incidentsService.getIncidentsByOrg(organizationId, status);
+      const incidents = await incidentsService.getIncidentsByOrg(
+        organizationId,
+        status,
+        severity,
+        page,
+        limit,
+      );
       res.status(200).json(incidents);
     } catch (error) {
       next(error);

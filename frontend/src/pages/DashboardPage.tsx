@@ -4,6 +4,8 @@ import { useSocket } from '../context/SocketContext';
 import { apisApi, ApiItem, CreateApiPayload } from '../api/apisApi';
 import { incidentsApi, IncidentItem, IncidentStatus } from '../api/incidentsApi';
 import { ApiModal } from '../components/ApiModal';
+import { IncidentDetailModal } from '../components/IncidentDetailModal';
+import { ApiDetailModal } from '../components/ApiDetailModal';
 import {
   LogOut,
   Building,
@@ -18,6 +20,9 @@ import {
   Radio,
   CheckCircle,
   Clock,
+  Filter,
+  Eye,
+  BarChart2,
 } from 'lucide-react';
 
 export const DashboardPage: React.FC = () => {
@@ -32,6 +37,14 @@ export const DashboardPage: React.FC = () => {
   const [selectedApi, setSelectedApi] = useState<ApiItem | null>(null);
   const [newIncidentFlashId, setNewIncidentFlashId] = useState<string | null>(null);
 
+  // Filter states
+  const [statusFilter, setStatusFilter] = useState<string>('');
+  const [severityFilter, setSeverityFilter] = useState<string>('');
+
+  // Modal detail states
+  const [selectedDetailIncident, setSelectedDetailIncident] = useState<IncidentItem | null>(null);
+  const [selectedDetailApi, setSelectedDetailApi] = useState<ApiItem | null>(null);
+
   const isAdmin = user?.role === 'admin';
 
   const fetchDashboardData = useCallback(async () => {
@@ -40,7 +53,10 @@ export const DashboardPage: React.FC = () => {
     try {
       const [apisData, incidentsData] = await Promise.all([
         apisApi.getApis(),
-        incidentsApi.getIncidents(),
+        incidentsApi.getIncidents(
+          statusFilter || undefined,
+          severityFilter || undefined,
+        ),
       ]);
       setApis(apisData);
       setIncidents(incidentsData);
@@ -54,7 +70,7 @@ export const DashboardPage: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [statusFilter, severityFilter]);
 
   useEffect(() => {
     fetchDashboardData();
@@ -77,7 +93,7 @@ export const DashboardPage: React.FC = () => {
     const handleIncidentCreated = (payload: IncidentItem) => {
       setIncidents((prev) => [payload, ...prev.filter((inc) => inc._id !== payload._id)]);
       setNewIncidentFlashId(payload._id);
-      setTimeout(() => setNewIncidentFlashId(null), 2000);
+      setTimeout(() => setNewIncidentFlashId(null), 200);
     };
 
     // 3. incident:updated event listener
@@ -170,62 +186,47 @@ export const DashboardPage: React.FC = () => {
     }
   };
 
-  const getMethodBadgeColor = (method: string) => {
-    switch (method) {
-      case 'GET':
-        return 'bg-blue-500/10 text-blue-400 border-blue-500/30';
-      case 'POST':
-        return 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30';
-      case 'PUT':
-        return 'bg-amber-500/10 text-amber-400 border-amber-500/30';
-      case 'DELETE':
-        return 'bg-rose-500/10 text-rose-400 border-rose-500/30';
-      default:
-        return 'bg-ink-700 text-mist-400 border-ink-700';
-    }
-  };
-
   return (
-    <div className="min-h-screen bg-ink-950 text-mist-100 flex flex-col font-sans">
+    <div className="sw-atmosphere min-h-screen text-mist-100 flex flex-col font-sans">
       {/* Top Header Bar */}
-      <header className="bg-ink-900 border-b border-ink-700 px-6 py-3 flex justify-between items-center">
+      <header className="bg-ink-900/90 backdrop-blur-sm border-b border-ink-700 px-4 py-3 flex justify-between items-center sticky top-0 z-40">
         <div className="flex items-center space-x-4">
-          <div className="flex items-center space-x-2">
-            <span className="w-2.5 h-2.5 rounded-full bg-status-ok" />
-            <span className="font-semibold text-sm text-mist-100">SentryWatch</span>
+          <div className="flex items-center space-x-2.5">
+            <div className="sw-brand-mark !w-7 !h-7">
+              <Activity className="w-3.5 h-3.5" strokeWidth={2.5} />
+            </div>
+            <span className="font-semibold text-[20px] leading-none text-mist-100 tracking-tight">
+              SentryWatch
+            </span>
           </div>
-          <span className="text-ink-700">|</span>
-          <div className="flex items-center space-x-1.5 text-xs text-mist-400 font-mono">
+          <span className="text-ink-700 hidden sm:inline">|</span>
+          <div className="hidden sm:flex items-center space-x-1.5 text-[13px] text-mist-400">
             <Building className="w-3.5 h-3.5" />
             <span>{organization?.name || 'Organization'}</span>
           </div>
         </div>
 
-        <div className="flex items-center space-x-4 text-xs">
-          {/* Socket.IO Connection Indicator */}
+        <div className="flex items-center space-x-3 text-[13px]">
           <div
-            className={`flex items-center space-x-1.5 px-2 py-0.5 border text-[11px] font-mono ${
+            className={`flex items-center space-x-1.5 px-2 py-0.5 border text-[11px] ${
               isConnected
-                ? 'bg-status-ok/10 border-status-ok/30 text-status-ok'
-                : 'bg-status-critical/10 border-status-critical/30 text-status-critical'
+                ? 'border-status-ok text-status-ok'
+                : 'border-status-critical text-status-critical'
             }`}
           >
-            <Radio className="w-3 h-3 animate-pulse" />
-            <span>{isConnected ? 'LIVE REAL-TIME' : 'SOCKET DISCONNECTED'}</span>
+            <Radio className="w-3 h-3" />
+            <span>{isConnected ? 'Live' : 'Disconnected'}</span>
           </div>
 
-          <div className="flex items-center space-x-2 font-mono text-mist-400">
+          <div className="hidden md:flex items-center space-x-2 text-mist-400">
             <User className="w-3.5 h-3.5" />
-            <span>{user?.email}</span>
-            <span className="px-1.5 py-0.5 bg-signal-blue/10 border border-signal-blue/30 text-signal-blue text-[10px] font-semibold uppercase tracking-wider">
+            <span className="font-mono text-[12px]">{user?.email}</span>
+            <span className="px-1.5 py-0.5 border border-ink-700 text-mist-400 text-[11px] capitalize">
               {user?.role}
             </span>
           </div>
 
-          <button
-            onClick={logout}
-            className="flex items-center space-x-1 px-2.5 py-1 bg-ink-950 border border-ink-700 hover:border-mist-400 text-mist-400 hover:text-mist-100 text-xs transition-colors"
-          >
+          <button onClick={logout} className="sw-btn-ghost flex items-center space-x-1 text-[12px] !py-1">
             <LogOut className="w-3 h-3" />
             <span>Logout</span>
           </button>
@@ -233,52 +234,52 @@ export const DashboardPage: React.FC = () => {
       </header>
 
       {/* Main Container */}
-      <main className="flex-1 p-6 max-w-6xl w-full mx-auto space-y-6">
+      <main className="flex-1 p-4 max-w-6xl w-full mx-auto space-y-4">
         {/* Overview Status Summary Strip */}
-        <div className="bg-ink-900 border border-ink-700 p-4 grid grid-cols-4 gap-4 text-xs font-mono">
+        <div className="sw-panel p-3 grid grid-cols-2 sm:grid-cols-4 gap-4 text-[13px]">
           <div className="flex items-center space-x-3">
-            <span className="w-3 h-3 rounded-full bg-status-ok" />
+            <span className="w-1 h-1 rounded-full bg-status-ok" />
             <div>
-              <span className="text-mist-400 block text-[11px]">Healthy APIs</span>
-              <span className="text-base font-semibold text-mist-100">{okCount}</span>
+              <span className="text-mist-400 block text-[12px]">Healthy APIs</span>
+              <span className="text-[15px] font-semibold text-mist-100 font-mono">{okCount}</span>
             </div>
           </div>
           <div className="flex items-center space-x-3">
-            <span className="w-3 h-3 rounded-full bg-status-warn" />
+            <span className="w-1 h-1 rounded-full bg-status-warn" />
             <div>
-              <span className="text-mist-400 block text-[11px]">Degraded</span>
-              <span className="text-base font-semibold text-mist-100">{warnCount}</span>
+              <span className="text-mist-400 block text-[12px]">Degraded</span>
+              <span className="text-[15px] font-semibold text-mist-100 font-mono">{warnCount}</span>
             </div>
           </div>
           <div className="flex items-center space-x-3">
-            <span className="w-3 h-3 rounded-full bg-status-critical" />
+            <span className="w-1 h-1 rounded-full bg-status-critical" />
             <div>
-              <span className="text-mist-400 block text-[11px]">Failing</span>
-              <span className="text-base font-semibold text-mist-100">{criticalCount}</span>
+              <span className="text-mist-400 block text-[12px]">Failing</span>
+              <span className="text-[15px] font-semibold text-mist-100 font-mono">{criticalCount}</span>
             </div>
           </div>
           <div className="flex items-center space-x-3">
-            <span className="w-3 h-3 rounded-full bg-mist-400" />
+            <span className="w-1 h-1 rounded-full bg-mist-400" />
             <div>
-              <span className="text-mist-400 block text-[11px]">Pending / Unknown</span>
-              <span className="text-base font-semibold text-mist-100">{unknownCount}</span>
+              <span className="text-mist-400 block text-[12px]">Pending / Unknown</span>
+              <span className="text-[15px] font-semibold text-mist-100 font-mono">{unknownCount}</span>
             </div>
           </div>
         </div>
 
         {/* API Registry Section */}
-        <div className="bg-ink-900 border border-ink-700">
-          <div className="p-4 border-b border-ink-700 flex justify-between items-center">
+        <div className="sw-panel">
+          <div className="px-4 py-3 border-b border-ink-700 flex justify-between items-center">
             <div className="flex items-center space-x-2">
               <Activity className="w-4 h-4 text-signal-blue" />
-              <h2 className="text-sm font-semibold text-mist-100 font-mono">API Registry</h2>
-              <span className="text-xs text-mist-400 font-mono">({apis.length} monitored endpoints)</span>
+              <h2 className="text-[15px] font-semibold text-mist-100">API Registry</h2>
+              <span className="text-[12px] text-mist-400 font-mono">({apis.length})</span>
             </div>
 
             <div className="flex items-center space-x-2">
               <button
                 onClick={fetchDashboardData}
-                className="p-1.5 text-mist-400 hover:text-mist-100 hover:bg-ink-950 border border-transparent hover:border-ink-700 transition-colors"
+                className="p-1.5 text-mist-400 hover:text-mist-100 border border-transparent hover:border-ink-700"
                 title="Refresh dashboard data"
               >
                 <RefreshCw className="w-3.5 h-3.5" />
@@ -286,103 +287,106 @@ export const DashboardPage: React.FC = () => {
               {isAdmin && (
                 <button
                   onClick={openCreateModal}
-                  className="flex items-center space-x-1 px-3 py-1.5 bg-signal-blue hover:bg-blue-600 text-white font-medium text-xs transition-colors"
+                  className="sw-btn-primary flex items-center space-x-1 !py-1.5 !text-[12px]"
                 >
                   <Plus className="w-3.5 h-3.5" />
-                  <span>Add API Endpoint</span>
+                  <span>Add API</span>
                 </button>
               )}
             </div>
           </div>
 
           {error && (
-            <div className="m-4 p-3 bg-status-critical/10 border border-status-critical/30 text-status-critical text-xs flex items-center space-x-2 font-mono">
+            <div className="m-4 p-3 border border-status-critical text-status-critical text-[13px] flex items-center space-x-2">
               <AlertCircle className="w-4 h-4 shrink-0" />
               <span>{error}</span>
             </div>
           )}
 
           {isLoading ? (
-            <div className="p-8 text-center text-xs text-mist-400 font-mono">
+            <div className="p-8 text-center text-[13px] text-mist-400">
               Loading registered API monitors...
             </div>
           ) : apis.length === 0 ? (
-            <div className="p-10 text-center text-xs text-mist-400 font-mono space-y-2">
+            <div className="p-8 text-center text-[13px] text-mist-400 space-y-2">
               <p className="text-mist-100">No APIs registered yet — add one to start monitoring.</p>
             </div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs font-mono">
+              <table className="w-full text-left text-[13px]">
                 <thead className="bg-ink-950/60 text-mist-400 border-b border-ink-700">
                   <tr>
-                    <th className="py-2.5 px-4 font-normal">Status</th>
-                    <th className="py-2.5 px-4 font-normal">Name</th>
-                    <th className="py-2.5 px-4 font-normal">Method</th>
-                    <th className="py-2.5 px-4 font-normal">Target URL</th>
-                    <th className="py-2.5 px-4 font-normal">Expected</th>
-                    <th className="py-2.5 px-4 font-normal">Interval</th>
-                    <th className="py-2.5 px-4 font-normal">State</th>
-                    {isAdmin && <th className="py-2.5 px-4 font-normal text-right">Actions</th>}
+                    <th className="py-2 px-4 font-normal text-[12px]">Status</th>
+                    <th className="py-2 px-4 font-normal text-[12px]">Name</th>
+                    <th className="py-2 px-4 font-normal text-[12px]">Method</th>
+                    <th className="py-2 px-4 font-normal text-[12px]">Target URL</th>
+                    <th className="py-2 px-4 font-normal text-[12px]">Expected</th>
+                    <th className="py-2 px-4 font-normal text-[12px]">Interval</th>
+                    <th className="py-2 px-4 font-normal text-[12px]">State</th>
+                    {isAdmin && <th className="py-2 px-4 font-normal text-[12px] text-right">Actions</th>}
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-ink-700/50">
+                <tbody className="divide-y divide-ink-700">
                   {apis.map((api) => (
-                    <tr key={api.id} className="hover:bg-ink-950/40 transition-colors">
-                      <td className="py-3 px-4">
-                        <div className="flex items-center space-x-2">
-                          <span
-                            className={`w-2.5 h-2.5 rounded-full ${getStatusDotColor(api.currentStatus)}`}
-                          />
-                        </div>
-                      </td>
-                      <td className="py-3 px-4 font-semibold text-mist-100">{api.name}</td>
-                      <td className="py-3 px-4">
+                    <tr key={api.id}>
+                      <td className="py-2.5 px-4">
                         <span
-                          className={`px-1.5 py-0.5 border text-[10px] font-bold ${getMethodBadgeColor(api.method)}`}
-                        >
+                          className={`inline-block w-1 h-1 rounded-full ${getStatusDotColor(api.currentStatus)}`}
+                        />
+                      </td>
+                      <td className="py-2.5 px-4 font-medium text-mist-100">{api.name}</td>
+                      <td className="py-2.5 px-4">
+                        <span className="px-1.5 py-0.5 border border-ink-700 text-mist-100 font-mono text-[12px] font-medium">
                           {api.method}
                         </span>
                       </td>
-                      <td className="py-3 px-4 text-mist-400 max-w-xs truncate" title={api.url}>
+                      <td className="py-2.5 px-4 text-mist-400 font-mono text-[12px] max-w-xs truncate" title={api.url}>
                         {api.url}
                       </td>
-                      <td className="py-3 px-4 text-mist-400">{api.expectedStatus}</td>
-                      <td className="py-3 px-4 text-mist-400">
+                      <td className="py-2.5 px-4 text-mist-400 font-mono">{api.expectedStatus}</td>
+                      <td className="py-2.5 px-4 text-mist-400 font-mono">
                         {api.checkIntervalSeconds === 60
                           ? '60s'
                           : `${api.checkIntervalSeconds / 60}m`}
                       </td>
-                      <td className="py-3 px-4">
+                      <td className="py-2.5 px-4">
                         <span
-                          className={`px-2 py-0.5 text-[11px] font-semibold uppercase ${
-                            api.enabled
-                              ? 'text-status-ok bg-status-ok/10'
-                              : 'text-mist-400 bg-ink-950'
+                          className={`text-[12px] ${
+                            api.enabled ? 'text-status-ok' : 'text-mist-400'
                           }`}
                         >
                           {api.enabled ? 'Active' : 'Disabled'}
                         </span>
                       </td>
-                      {isAdmin && (
-                        <td className="py-3 px-4 text-right">
-                          <div className="flex justify-end space-x-2">
-                            <button
-                              onClick={() => openEditModal(api)}
-                              className="p-1 text-mist-400 hover:text-signal-blue transition-colors"
-                              title="Edit API"
-                            >
-                              <Edit2 className="w-3.5 h-3.5" />
-                            </button>
-                            <button
-                              onClick={() => handleDelete(api.id)}
-                              className="p-1 text-mist-400 hover:text-status-critical transition-colors"
-                              title="Delete API"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-                        </td>
-                      )}
+                      <td className="py-2.5 px-4 text-right">
+                        <div className="flex justify-end space-x-2">
+                          <button
+                            onClick={() => setSelectedDetailApi(api)}
+                            className="p-1 text-mist-400 hover:text-signal-blue"
+                            title="View Stats & Latency Chart"
+                          >
+                            <BarChart2 className="w-3.5 h-3.5" />
+                          </button>
+                          {isAdmin && (
+                            <>
+                              <button
+                                onClick={() => openEditModal(api)}
+                                className="p-1 text-mist-400 hover:text-signal-blue"
+                                title="Edit API"
+                              >
+                                <Edit2 className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                onClick={() => handleDelete(api.id)}
+                                className="p-1 text-mist-400 hover:text-status-critical"
+                                title="Delete API"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -392,22 +396,54 @@ export const DashboardPage: React.FC = () => {
         </div>
 
         {/* Live Incident Feed Section per gen-design.md §4 */}
-        <div className="bg-ink-900 border border-ink-700">
-          <div className="p-4 border-b border-ink-700 flex justify-between items-center">
+        <div className="sw-panel">
+          <div className="px-4 py-3 border-b border-ink-700 flex flex-wrap justify-between items-center gap-3">
             <div className="flex items-center space-x-2">
               <AlertTriangle className="w-4 h-4 text-status-warn" />
-              <h2 className="text-sm font-semibold text-mist-100 font-mono">Live Incident Feed</h2>
-              <span className="text-xs text-mist-400 font-mono">({incidents.length} active/historical)</span>
+              <h2 className="text-[15px] font-semibold text-mist-100">Live Incident Feed</h2>
+              <span className="text-[12px] text-mist-400 font-mono">({incidents.length})</span>
+            </div>
+
+            {/* Incident Filters */}
+            <div className="flex items-center space-x-3 text-[12px]">
+              <div className="flex items-center space-x-1.5">
+                <Filter className="w-3.5 h-3.5 text-mist-400" />
+                <span className="text-mist-400">Status:</span>
+                <select
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value)}
+                  className="bg-ink-950 border border-ink-700 text-mist-100 px-2 py-1 text-[12px] focus:outline-none focus:border-signal-blue"
+                >
+                  <option value="">All Statuses</option>
+                  <option value="detected">Detected</option>
+                  <option value="investigating">Investigating</option>
+                  <option value="mitigated">Mitigated</option>
+                  <option value="resolved">Resolved</option>
+                </select>
+              </div>
+
+              <div className="flex items-center space-x-1.5">
+                <span className="text-mist-400">Severity:</span>
+                <select
+                  value={severityFilter}
+                  onChange={(e) => setSeverityFilter(e.target.value)}
+                  className="bg-ink-950 border border-ink-700 text-mist-100 px-2 py-1 text-[12px] focus:outline-none focus:border-signal-blue"
+                >
+                  <option value="">All Severities</option>
+                  <option value="high">High</option>
+                  <option value="medium">Medium</option>
+                </select>
+              </div>
             </div>
           </div>
 
           {incidents.length === 0 ? (
-            <div className="p-8 text-center text-xs text-mist-400 font-mono flex items-center justify-center space-x-2">
+            <div className="p-6 text-center text-[13px] text-mist-400 flex items-center justify-center space-x-2">
               <CheckCircle className="w-4 h-4 text-status-ok" />
-              <span>No open incidents reported for this organization.</span>
+              <span>No open incidents matching filter criteria.</span>
             </div>
           ) : (
-            <div className="divide-y divide-ink-700/50">
+            <div className="divide-y divide-ink-700">
               {incidents.map((inc) => {
                 const targetApi = apis.find((a) => a.id === inc.apiId);
                 const isFlashing = newIncidentFlashId === inc._id;
@@ -415,16 +451,16 @@ export const DashboardPage: React.FC = () => {
                 return (
                   <div
                     key={inc._id}
-                    className={`p-4 transition-all duration-300 ${
+                    className={`px-4 py-2.5 border-l-2 ${
                       isFlashing
-                        ? 'border-l-4 border-l-status-critical bg-status-critical/10'
-                        : 'border-l-2 border-l-transparent hover:bg-ink-950/40'
+                        ? 'border-l-status-critical sw-incident-flash'
+                        : 'border-l-transparent'
                     }`}
                   >
-                    <div className="flex justify-between items-start mb-2">
-                      <div className="flex items-center space-x-2 font-mono text-xs">
+                    <div className="flex justify-between items-start mb-1.5">
+                      <div className="flex items-center space-x-2 text-[13px]">
                         <span
-                          className={`w-2 h-2 rounded-full ${
+                          className={`w-1 h-1 rounded-full ${
                             inc.status === 'resolved'
                               ? 'bg-status-resolved'
                               : inc.severity === 'high'
@@ -432,40 +468,47 @@ export const DashboardPage: React.FC = () => {
                               : 'bg-status-warn'
                           }`}
                         />
-                        <span className="font-semibold text-mist-100">
+                        <span className="font-medium text-mist-100">
                           {targetApi ? targetApi.name : `API (${inc.apiId})`}
                         </span>
                         <span
-                          className={`px-1.5 py-0.5 text-[10px] font-bold uppercase ${
+                          className={`text-[11px] capitalize ${
                             inc.severity === 'high'
-                              ? 'bg-status-critical/10 text-status-critical border border-status-critical/30'
-                              : 'bg-status-warn/10 text-status-warn border border-status-warn/30'
+                              ? 'text-status-critical'
+                              : 'text-status-warn'
                           }`}
                         >
                           {inc.severity}
                         </span>
                       </div>
 
-                      <div className="flex items-center space-x-3 text-xs font-mono">
+                      <div className="flex items-center space-x-2 text-[12px]">
+                        <button
+                          onClick={() => setSelectedDetailIncident(inc)}
+                          className="px-2 py-1 bg-ink-950 border border-ink-700 hover:border-mist-100 text-mist-400 flex items-center space-x-1"
+                        >
+                          <Eye className="w-3 h-3" />
+                          <span>View detail</span>
+                        </button>
+
                         <span
-                          className={`px-2 py-0.5 text-[11px] font-semibold uppercase ${
+                          className={`text-[11px] capitalize ${
                             inc.status === 'detected'
-                              ? 'bg-status-critical/20 text-status-critical'
+                              ? 'text-status-critical'
                               : inc.status === 'investigating'
-                              ? 'bg-status-warn/20 text-status-warn'
+                              ? 'text-status-warn'
                               : inc.status === 'mitigated'
-                              ? 'bg-signal-blue/20 text-signal-blue'
-                              : 'bg-ink-700 text-mist-400'
+                              ? 'text-signal-blue'
+                              : 'text-status-resolved'
                           }`}
                         >
                           {inc.status}
                         </span>
 
-                        {/* Lifecycle Transition Buttons */}
                         {inc.status === 'detected' && (
                           <button
                             onClick={() => handleStatusTransition(inc._id, 'investigating')}
-                            className="px-2 py-1 bg-ink-950 border border-ink-700 hover:border-status-warn text-status-warn text-[11px] font-mono transition-colors"
+                            className="px-2 py-1 bg-ink-950 border border-ink-700 hover:border-status-warn text-status-warn"
                           >
                             Investigate
                           </button>
@@ -475,13 +518,13 @@ export const DashboardPage: React.FC = () => {
                           <div className="flex space-x-1">
                             <button
                               onClick={() => handleStatusTransition(inc._id, 'mitigated')}
-                              className="px-2 py-1 bg-ink-950 border border-ink-700 hover:border-signal-blue text-signal-blue text-[11px] font-mono transition-colors"
+                              className="px-2 py-1 bg-ink-950 border border-ink-700 hover:border-signal-blue text-signal-blue"
                             >
                               Mitigate
                             </button>
                             <button
                               onClick={() => handleStatusTransition(inc._id, 'resolved')}
-                              className="px-2 py-1 bg-ink-950 border border-ink-700 hover:border-status-ok text-status-ok text-[11px] font-mono transition-colors"
+                              className="px-2 py-1 bg-ink-950 border border-ink-700 hover:border-status-ok text-status-ok"
                             >
                               Resolve
                             </button>
@@ -491,7 +534,7 @@ export const DashboardPage: React.FC = () => {
                         {inc.status === 'mitigated' && (
                           <button
                             onClick={() => handleStatusTransition(inc._id, 'resolved')}
-                            className="px-2 py-1 bg-ink-950 border border-ink-700 hover:border-status-ok text-status-ok text-[11px] font-mono transition-colors"
+                            className="px-2 py-1 bg-ink-950 border border-ink-700 hover:border-status-ok text-status-ok"
                           >
                             Resolve
                           </button>
@@ -499,15 +542,20 @@ export const DashboardPage: React.FC = () => {
                       </div>
                     </div>
 
-                    <p className="text-xs text-mist-400 font-mono mb-2">{inc.reason}</p>
+                    <p className="text-[13px] text-mist-400 mb-1.5">{inc.reason}</p>
 
-                    <div className="flex items-center space-x-4 text-[11px] text-mist-400 font-mono">
+                    <div className="flex items-center space-x-4 text-[12px] text-mist-400">
                       <div className="flex items-center space-x-1">
-                        <Clock className="w-3 h-3 text-mist-400" />
-                        <span>Detected: {new Date(inc.detectedAt).toLocaleTimeString()}</span>
+                        <Clock className="w-3 h-3" />
+                        <span className="font-mono">
+                          Detected: {new Date(inc.detectedAt).toLocaleTimeString()}
+                        </span>
                       </div>
+                      {inc.anomalyCount && inc.anomalyCount > 1 && (
+                        <span className="font-mono">Cycles: {inc.anomalyCount}</span>
+                      )}
                       {inc.events && inc.events.length > 0 && (
-                        <span>Timeline Events: {inc.events.length}</span>
+                        <span className="font-mono">Events: {inc.events.length}</span>
                       )}
                     </div>
                   </div>
@@ -518,12 +566,28 @@ export const DashboardPage: React.FC = () => {
         </div>
       </main>
 
-      {/* Modal Form */}
+      {/* Modal Form for Create/Edit API */}
       <ApiModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         onSubmit={handleCreateOrUpdate}
         initialData={selectedApi}
+      />
+
+      {/* Modal for Incident Detail & Lifecycle Stepper */}
+      <IncidentDetailModal
+        isOpen={!!selectedDetailIncident}
+        onClose={() => setSelectedDetailIncident(null)}
+        incident={selectedDetailIncident}
+        api={apis.find((a) => a.id === selectedDetailIncident?.apiId)}
+        onStatusUpdated={fetchDashboardData}
+      />
+
+      {/* Modal for API Stats & Latency Chart */}
+      <ApiDetailModal
+        isOpen={!!selectedDetailApi}
+        onClose={() => setSelectedDetailApi(null)}
+        api={selectedDetailApi}
       />
     </div>
   );

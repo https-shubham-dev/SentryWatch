@@ -5,6 +5,10 @@ import { Organization } from '../../models/Organization.js';
 import { SignupDto, LoginDto } from '../../types/auth.js';
 import { ValidationError, ConflictError, UnauthorizedError, NotFoundError } from '../../middleware/errorHandler.js';
 import { generateAccessToken, generateRefreshToken, verifyRefreshToken } from './jwt.utils.js';
+import { assertNotLocked, recordFailedLogin, clearLoginFailures } from './loginLockout.js';
+
+const PASSWORD_RULE_MESSAGE =
+  'Password must be at least 8 characters and include a letter and a number';
 
 export class AuthService {
   /**
@@ -80,19 +84,26 @@ export class AuthService {
 
   /**
    * Authenticate user credentials and issue tokens.
+   * Enforces Redis-backed lockout after 5 consecutive failures (15 min).
    */
   async login(dto: LoginDto) {
     this.validateLoginDto(dto);
 
-    const user = await User.findOne({ email: dto.email.toLowerCase() });
+    const email = dto.email.toLowerCase();
+    await assertNotLocked(email);
+
+    const user = await User.findOne({ email });
     if (!user) {
       throw new UnauthorizedError('Invalid email or password');
     }
 
     const isPasswordValid = await bcrypt.compare(dto.password, user.passwordHash);
     if (!isPasswordValid) {
+      await recordFailedLogin(email);
       throw new UnauthorizedError('Invalid email or password');
     }
+
+    await clearLoginFailures(email);
 
     const org = await Organization.findById(user.organizationId);
     if (!org) {
@@ -163,8 +174,12 @@ export class AuthService {
     if (!dto.email || !dto.password || !dto.orgName) {
       throw new ValidationError('Email, password, and orgName are required');
     }
-    if (dto.password.length < 6) {
-      throw new ValidationError('Password must be at least 6 characters');
+    if (
+      dto.password.length < 8 ||
+      !/[A-Za-z]/.test(dto.password) ||
+      !/\d/.test(dto.password)
+    ) {
+      throw new ValidationError(PASSWORD_RULE_MESSAGE);
     }
   }
 

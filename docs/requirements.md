@@ -6,19 +6,25 @@ Module-by-module detail, expanding on `prd.md`. Each locked decision exists to r
 
 **Requirements:**
 - Signup creates a User **and** an Organization (the signing-up user becomes that org's `admin`) in one transaction.
+- Signup password must be at least 8 characters and include at least one letter and one number; weak passwords are rejected with a clear validation error (not silently accepted).
 - Login returns access token (15 min expiry) + refresh token (7 days, httpOnly cookie).
+- After 5 consecutive failed login attempts for an email, that account is locked for 15 minutes (Redis-backed); further attempts return `429` with a clear lockout message. Counter clears on successful login.
+- `/auth/login` and `/auth/signup` are rate-limited to 5 requests/minute per IP.
 - `/auth/me` returns current user + org context, used by frontend on app load to restore session.
 - Invite flow: admin can invite a member by email (Phase 2 — Phase 1 ships with manual org membership only, since a full invite/email system is out of scope for MVP).
 
 **Locked decisions:**
 - One user belongs to exactly one organization (no multi-org membership in MVP — avoids a whole class of context-switching UI/logic).
 - Only `admin` role can register/edit/delete APIs. `member` role is read + incident status updates only.
+- Account lockout lives in Redis (ephemeral TTL), not on the User document — fits a 15-minute window and works across multiple API instances.
+- Full 2FA / email verification is out of scope for MVP (requires an email provider).
 
 ## 2. API Registry
 
 **Requirements:**
 - Fields: name, method (GET/POST/PUT/DELETE), URL, expected status code, optional headers (for simple auth like API keys), check interval (60s / 5min / 15min — fixed options, not free-form, to keep the scheduler simple), enabled/disabled toggle.
 - List view shows current status derived from most recent check (ok/warn/critical/unknown).
+- Admin and member can export an API's check history as a server-generated PDF (`GET /apis/:id/checks/export`): default last 100 checks, optional `?from=&to=` date range; includes summary stats (uptime %, avg latency) and a table of checks. Download control lives on the API detail view.
 - Delete an API cascades: stops its scheduled job, but **does not delete historical Check/Incident records** (audit trail matters even after an API is removed from monitoring).
 
 **Locked decisions:**
@@ -56,7 +62,7 @@ Module-by-module detail, expanding on `prd.md`. Each locked decision exists to r
 - Auto-created when anomaly detection fires AND the anomaly persists for **2 consecutive check cycles** (not a single blip) — this guard prevents alert fatigue from one-off network hiccups.
 - Lifecycle: `Detected → Investigating → Mitigated → Resolved`. Each transition is logged with timestamp + (if manual) the user who made it.
 - Severity derived automatically at creation: `high` if failure rate ≥80% or latency ≥5x baseline, else `medium`.
-- An API already has an **open** incident → a new anomaly does not create a duplicate incident; it's attached as a new event on the existing one.
+- An API already has an **open** incident → a new anomaly does not create a duplicate incident or push duplicate events; instead, it increments `anomalyCount` (`$inc`) and updates `lastAnomalyAt` (`$set`) on the existing incident (events are appended strictly on real status transitions: `detected`, `investigating`, `mitigated`, `resolved`).
 - Resolving requires the underlying API to currently be passing its last check (can't manually resolve while it's still actively failing) — enforced server-side, not just a UI suggestion.
 
 **Locked decisions:**

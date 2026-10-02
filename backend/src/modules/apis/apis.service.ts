@@ -1,7 +1,15 @@
 import { Api, IApi, HttpMethod, AllowedIntervalSeconds } from '../../models/Api.js';
+import { Check, ICheck } from '../../models/Check.js';
+import { getRollingWindowChecks } from '../anomaly/rollingWindow.js';
 import { CreateApiDto, UpdateApiDto } from '../../types/api.js';
 import { ValidationError, NotFoundError } from '../../middleware/errorHandler.js';
 import { scheduleApiCheck, removeApiCheck } from '../../workers/scheduler.js';
+import {
+  buildCheckHistoryPdf,
+  computeCheckExportSummary,
+} from './checkHistoryPdf.js';
+
+const DEFAULT_EXPORT_LIMIT = 100;
 
 export class ApisService {
   /**
@@ -20,6 +28,126 @@ export class ApisService {
       throw new NotFoundError('API not found');
     }
     return api;
+  }
+
+  /**
+   * Get paginated check history for an API (api.md).
+   */
+  async getApiChecks(
+    apiId: string,
+    organizationId: string,
+    page: number = 1,
+    limit: number = 20,
+  ): Promise<{ data: ICheck[]; total: number; page: number; limit: number }> {
+    await this.getApiById(apiId, organizationId);
+    const skip = (page - 1) * limit;
+    const [data, total] = await Promise.all([
+      Check.find({ apiId, organizationId }).sort({ executedAt: -1 }).skip(skip).limit(limit),
+      Check.countDocuments({ apiId, organizationId }),
+    ]);
+    return { data, total, page, limit };
+  }
+
+  /**
+   * Export check history as a dark-themed PDF.
+   * Default: last 100 checks. Optional ?from=&to= ISO date range override.
+   */
+  async exportApiChecksPdf(
+    apiId: string,
+    organizationId: string,
+    options: { from?: string; to?: string } = {},
+  ): Promise<{ buffer: Buffer; filename: string }> {
+    const api = await this.getApiById(apiId, organizationId);
+
+    const filter: Record<string, unknown> = { apiId, organizationId };
+    let rangeLabel = `Last ${DEFAULT_EXPORT_LIMIT} checks`;
+    let useDateRange = false;
+
+    if (options.from || options.to) {
+      useDateRange = true;
+      const executedAt: Record<string, Date> = {};
+      if (options.from) {
+        const fromDate = new Date(options.from);
+        if (Number.isNaN(fromDate.getTime())) {
+          throw new ValidationError('Invalid from date — use ISO 8601');
+        }
+        executedAt.$gte = fromDate;
+      }
+      if (options.to) {
+        const toDate = new Date(options.to);
+        if (Number.isNaN(toDate.getTime())) {
+          throw new ValidationError('Invalid to date — use ISO 8601');
+        }
+        executedAt.$lte = toDate;
+      }
+      filter.executedAt = executedAt;
+      const fromLabel = options.from ? new Date(options.from).toISOString().slice(0, 10) : '…';
+      const toLabel = options.to ? new Date(options.to).toISOString().slice(0, 10) : '…';
+      rangeLabel = `${fromLabel} → ${toLabel}`;
+    }
+
+    const query = Check.find(filter).sort({ executedAt: -1 });
+    if (!useDateRange) {
+      query.limit(DEFAULT_EXPORT_LIMIT);
+    }
+    const checks = await query.lean();
+
+    const summary = computeCheckExportSummary(checks, rangeLabel);
+    const buffer = await buildCheckHistoryPdf(api, checks, summary);
+    const safeName = api.name.replace(/[^a-zA-Z0-9-_]+/g, '_').slice(0, 40);
+    const filename = `sentrywatch-${safeName}-checks.pdf`;
+
+    return { buffer, filename };
+  }
+
+  /**
+   * Get API statistics (rolling latency, failure rate, and recent check metrics for chart).
+   */
+  async getApiStats(apiId: string, organizationId: string): Promise<{
+    avgLatencyMs: number;
+    failureRate: number;
+    totalChecks: number;
+    recentChecks: { executedAt: Date; latencyMs: number; passed: boolean }[];
+  }> {
+    await this.getApiById(apiId, organizationId);
+    let checks = await getRollingWindowChecks(apiId);
+
+    if (!checks || checks.length === 0) {
+      const dbChecks = await Check.find({ apiId, organizationId })
+        .sort({ executedAt: -1 })
+        .limit(20)
+        .lean();
+      checks = dbChecks.map((c) => ({
+        passed: c.passed,
+        latencyMs: c.latencyMs,
+        executedAt: c.executedAt,
+      }));
+    }
+
+    const totalChecks = checks.length;
+    const failedChecks = checks.filter((c) => !c.passed).length;
+    const failureRate = totalChecks > 0 ? failedChecks / totalChecks : 0;
+
+    const latencies = checks
+      .map((c) => c.latencyMs)
+      .filter((l): l is number => l !== null && l !== undefined);
+    const avgLatencyMs =
+      latencies.length > 0
+        ? Math.round(latencies.reduce((a, b) => a + b, 0) / latencies.length)
+        : 0;
+
+    const recentChecks = [...checks].reverse().map((c) => ({
+      executedAt: c.executedAt ? new Date(c.executedAt) : new Date(),
+      latencyMs: c.latencyMs ?? 0,
+      passed: c.passed,
+    }));
+
+    return {
+      avgLatencyMs,
+      failureRate,
+      totalChecks,
+      recentChecks,
+    };
   }
 
   /**

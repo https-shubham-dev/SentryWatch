@@ -73,47 +73,48 @@ export const ApiModal: React.FC<ApiModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4">
-      <div className="bg-ink-900 border border-ink-700 w-full max-w-lg p-6 shadow-2xl">
+    <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4">
+      <div className="bg-ink-900 border border-ink-700 w-full max-w-lg p-5">
         <div className="flex justify-between items-center mb-4 pb-3 border-b border-ink-700">
-          <h2 className="text-sm font-semibold text-mist-100 font-mono">
-            {initialData ? 'Edit API Monitor' : 'Register New API Monitor'}
+          <h2 className="text-[15px] font-semibold text-mist-100">
+            {initialData ? 'Edit API monitor' : 'Register new API monitor'}
           </h2>
           <button
             onClick={onClose}
-            className="text-mist-400 hover:text-mist-100 p-1 transition-colors"
+            className="text-mist-400 hover:text-mist-100 p-1"
+            aria-label="Close"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
 
         {error && (
-          <div className="mb-4 p-2.5 bg-status-critical/10 border border-status-critical/30 text-status-critical text-xs flex items-center space-x-2">
+          <div className="mb-4 p-2.5 border border-status-critical text-status-critical text-[13px] flex items-center space-x-2">
             <AlertCircle className="w-4 h-4 shrink-0" />
             <span>{error}</span>
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-4 text-xs font-mono">
+        <form onSubmit={handleSubmit} className="space-y-4 text-[13px] font-sans">
           <div>
-            <label className="block text-mist-400 mb-1">API Name / Label</label>
+            <label className="block text-mist-400 mb-1 text-[12px]">API name</label>
             <input
               type="text"
               required
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="Payment Gateway Health"
-              className="w-full bg-ink-950 border border-ink-700 px-3 py-1.5 text-mist-100 focus:outline-none focus:border-signal-blue transition-colors"
+              className="w-full bg-ink-950 border border-ink-700 px-3 py-1.5 text-mist-100 focus:outline-none focus:border-signal-blue"
             />
           </div>
 
           <div className="grid grid-cols-3 gap-3">
             <div>
-              <label className="block text-mist-400 mb-1">HTTP Method</label>
+              <label className="block text-mist-400 mb-1 text-[12px]">Method</label>
               <select
                 value={method}
                 onChange={(e) => setMethod(e.target.value as HttpMethod)}
-                className="w-full bg-ink-950 border border-ink-700 px-3 py-1.5 text-mist-100 focus:outline-none focus:border-signal-blue transition-colors"
+                className="w-full bg-ink-950 border border-ink-700 px-3 py-1.5 text-mist-100 font-mono focus:outline-none focus:border-signal-blue"
               >
                 <option value="GET">GET</option>
                 <option value="POST">POST</option>
@@ -123,21 +124,21 @@ export const ApiModal: React.FC<ApiModalProps> = ({
             </div>
 
             <div className="col-span-2">
-              <label className="block text-mist-400 mb-1">Target Endpoint URL</label>
+              <label className="block text-mist-400 mb-1 text-[12px]">Target URL</label>
               <input
                 type="url"
                 required
                 value={url}
                 onChange={(e) => setUrl(e.target.value)}
                 placeholder="https://api.acme.com/v1/health"
-                className="w-full bg-ink-950 border border-ink-700 px-3 py-1.5 text-mist-100 focus:outline-none focus:border-signal-blue transition-colors"
+                className="w-full bg-ink-950 border border-ink-700 px-3 py-1.5 text-mist-100 font-mono focus:outline-none focus:border-signal-blue"
               />
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-mist-400 mb-1">Expected HTTP Code</label>
+              <label className="block text-mist-400 mb-1 text-[12px]">Expected HTTP code</label>
               <input
                 type="number"
                 required
@@ -145,16 +146,18 @@ export const ApiModal: React.FC<ApiModalProps> = ({
                 max={599}
                 value={expectedStatus}
                 onChange={(e) => setExpectedStatus(parseInt(e.target.value, 10))}
-                className="w-full bg-ink-950 border border-ink-700 px-3 py-1.5 text-mist-100 focus:outline-none focus:border-signal-blue transition-colors"
+                className="w-full bg-ink-950 border border-ink-700 px-3 py-1.5 text-mist-100 font-mono focus:outline-none focus:border-signal-blue"
               />
             </div>
 
             <div>
-              <label className="block text-mist-400 mb-1">Check Interval</label>
+              <label className="block text-mist-400 mb-1 text-[12px]">Check interval</label>
               <select
                 value={checkIntervalSeconds}
-                onChange={(e) => setCheckIntervalSeconds(parseInt(e.target.value, 10) as AllowedIntervalSeconds)}
-                className="w-full bg-ink-950 border border-ink-700 px-3 py-1.5 text-mist-100 focus:outline-none focus:border-signal-blue transition-colors"
+                onChange={(e) =>
+                  setCheckIntervalSeconds(parseInt(e.target.value, 10) as AllowedIntervalSeconds)
+                }
+                className="w-full bg-ink-950 border border-ink-700 px-3 py-1.5 text-mist-100 focus:outline-none focus:border-signal-blue"
               >
                 <option value={60}>60s (1 min)</option>
                 <option value={300}>300s (5 min)</option>
@@ -163,7 +166,7 @@ export const ApiModal: React.FC<ApiModalProps> = ({
             </div>
           </div>
 
-          <div className="flex items-center space-x-2 pt-2">
+          <div className="flex items-center space-x-2 pt-1">
             <input
               type="checkbox"
               id="enabled"
@@ -176,18 +179,18 @@ export const ApiModal: React.FC<ApiModalProps> = ({
             </label>
           </div>
 
-          <div className="flex justify-end space-x-2 pt-4 border-t border-ink-700">
+          <div className="flex justify-end space-x-2 pt-3 border-t border-ink-700">
             <button
               type="button"
               onClick={onClose}
-              className="px-3 py-1.5 bg-ink-950 border border-ink-700 text-mist-400 hover:text-mist-100 transition-colors"
+              className="px-3 py-1.5 bg-ink-950 border border-ink-700 text-mist-400 hover:text-mist-100"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={isSubmitting}
-              className="px-4 py-1.5 bg-signal-blue hover:bg-blue-600 text-white font-medium transition-colors disabled:opacity-50"
+              className="px-4 py-1.5 bg-signal-blue hover:bg-blue-600 text-white font-medium disabled:opacity-50"
             >
               {isSubmitting ? 'Saving...' : initialData ? 'Update API' : 'Register API'}
             </button>

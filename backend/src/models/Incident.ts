@@ -17,6 +17,8 @@ export interface IIncident extends Document {
   severity: IncidentSeverity;
   reason: string;
   detectedAt: Date;
+  lastAnomalyAt: Date;
+  anomalyCount: number;
   resolvedAt: Date | null;
   relatedIncidentIds: Types.ObjectId[];
   events: IIncidentEvent[];
@@ -76,6 +78,16 @@ const IncidentSchema = new Schema<IIncident>(
       type: Date,
       required: true,
       default: Date.now,
+    },
+    lastAnomalyAt: {
+      type: Date,
+      required: true,
+      default: Date.now,
+    },
+    anomalyCount: {
+      type: Number,
+      required: true,
+      default: 1,
     },
     resolvedAt: {
       type: Date,

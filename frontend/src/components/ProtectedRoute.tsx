@@ -7,10 +7,10 @@ export const ProtectedRoute: React.FC = () => {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-ink-950 flex flex-col justify-center items-center">
-        <div className="flex items-center space-x-3 text-mist-400 font-mono text-xs">
-          <span className="w-2 h-2 rounded-full bg-signal-blue animate-ping" />
-          <span>Authenticating session...</span>
+      <div className="sw-atmosphere min-h-screen flex flex-col justify-center items-center">
+        <div className="flex items-center space-x-3 text-mist-400 text-[13px] sw-enter">
+          <span className="w-1 h-1 rounded-full bg-signal-blue" />
+          <span>Authenticating session…</span>
         </div>
       </div>
     );

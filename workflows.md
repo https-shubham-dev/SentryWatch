@@ -11,10 +11,9 @@ Admin signs up
    → Admin clicks "Add API"
    → Fills: name, method, URL, expected status, interval
    → Submits
-   → Backend creates API document (currentStatus: 'unknown')
    → Backend registers a BullMQ repeatable job for this API
    → First check runs within one interval window
-   → Dashboard updates (via socket) to currentStatus: 'ok' or 'critical'
+   → Dashboard updates (via socket) to currentStatus: 'ok' or 'warn' (if passing -> 'ok', if failing -> 'warn')
 ```
 **Key point to explain:** registration and scheduling are two separate steps that happen in the same request — creating the API document is a Mongo write, registering the job is a Redis/BullMQ operation. If one succeeds and the other fails, you have an inconsistent state. (Worth mentioning as a known edge case — in production you'd wrap this in a saga/compensating-action pattern; for MVP scope, a startup reconciliation job that re-registers jobs for any enabled API missing from the queue is enough.)
 
@@ -72,10 +71,17 @@ Check cycle 4:
 ```
 API Z (brand-new, no prior baseline checks) is registered pointing at a failing endpoint (500):
 
-Check cycles 1–4:
+Check cycle 1:
+   → Worker → 500 response / timeout
+   → Check written (passed: false)
+   → Baseline Guard Active (requires at least 5 total checks in history before evaluating failure rate anomaly).
+   → First check failed → worker updates apis.currentStatus: 'unknown' → 'warn' (does not become 'ok').
+   → Socket event: api:status_changed → dashboard row turns amber.
+
+Check cycles 2–4:
    → Baseline Guard Active (requires at least 5 total checks in history before evaluating failure rate anomaly).
    → Prevents false-positive incident creation on initial blips before baseline is established.
-   → Cycle 2 detects degradation trend (2 failed in last 5) → apis.currentStatus: 'ok' → 'warn'.
+   → apis.currentStatus remains 'warn'.
 
 Check cycle 5:
    → 5 total checks complete (5/5 failed = 100%). Baseline guard satisfied.

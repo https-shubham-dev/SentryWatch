@@ -113,11 +113,8 @@ async function executeRealWorkerCycle(apiId: string) {
     } else if (consecutiveCount >= 2) {
       const existingIncident = await Incident.findOne({ apiId: api._id, status: { $ne: 'resolved' } });
       if (existingIncident) {
-        existingIncident.events.push({
-          status: existingIncident.status,
-          timestamp: now,
-          triggeredBy: 'system',
-        });
+        existingIncident.anomalyCount = (existingIncident.anomalyCount || 1) + 1;
+        existingIncident.lastAnomalyAt = now;
         await existingIncident.save();
       } else {
         const newIncident = new Incident({
@@ -127,6 +124,8 @@ async function executeRealWorkerCycle(apiId: string) {
           severity: anomalyResult.severity,
           reason: anomalyResult.reason,
           detectedAt: now,
+          lastAnomalyAt: now,
+          anomalyCount: 1,
           events: [{ status: 'detected', timestamp: now, triggeredBy: 'system' }],
         });
         await newIncident.save();

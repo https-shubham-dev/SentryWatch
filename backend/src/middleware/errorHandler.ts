@@ -42,6 +42,12 @@ export class ConflictError extends AppError {
   }
 }
 
+export class TooManyRequestsError extends AppError {
+  constructor(message: string = 'Too many requests') {
+    super(message, 429, 'RATE_LIMITED');
+  }
+}
+
 // Global error handling middleware - Rules.md §7
 export function errorHandler(
   err: Error,

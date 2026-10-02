@@ -89,6 +89,8 @@ Indexes:
   severity: 'medium' | 'high',
   reason: String,             // human-readable, from anomaly detection — see requirements.md §4
   detectedAt: Date,
+  lastAnomalyAt: Date,        // updated ($set) on repeated anomaly cycles
+  anomalyCount: Number,       // incremented ($inc) on repeated anomaly cycles
   resolvedAt: Date | null,
   relatedIncidentIds: [ObjectId],  // Phase 2 correlation
   events: [ IncidentEvent ]   // embedded, see §7 below
@@ -97,7 +99,7 @@ Indexes:
 Index: `{ organizationId: 1, status: 1 }` (dashboard's "open incidents" query). `{ apiId: 1, status: 1 }` (used by the duplicate-incident guard in requirements.md §5).
 
 ## 7. Embedded: `IncidentEvent`
-Embedded rather than a separate collection — an incident's event history is always read *with* the incident (the timeline view), never independently, and the array stays small (a handful of status transitions per incident, not thousands). This is the correct embed-vs-reference call: embed when data is always accessed together and bounded in size; reference (as done for `checks`) when data is high-volume and queried independently.
+Embedded rather than a separate collection — an incident's event history is always read *with* the incident (the timeline view), never independently, and the array stays small (a handful of status transitions per incident, not thousands). Incident events are appended strictly on real status transitions (`detected`, `investigating`, `mitigated`, `resolved`). For repeated anomaly cycles on an already-open incident, events are not pushed; instead `anomalyCount` is incremented (`$inc`) and `lastAnomalyAt` is updated (`$set`). This is the correct embed-vs-reference call: embed when data is always accessed together and bounded in size; reference (as done for `checks`) when data is high-volume and queried independently.
 ```
 {
   status: 'detected' | 'investigating' | 'mitigated' | 'resolved',

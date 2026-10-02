@@ -1,7 +1,7 @@
 import { Incident, IIncident, IncidentStatus } from '../../models/Incident.js';
 import { Api } from '../../models/Api.js';
 import { Check } from '../../models/Check.js';
-import { ConflictError, NotFoundError, ValidationError } from '../../middleware/errorHandler.js';
+import { ConflictError, NotFoundError } from '../../middleware/errorHandler.js';
 import { publishSystemEvent } from '../../sockets/redisPubSub.js';
 
 export class IncidentsService {
@@ -44,7 +44,7 @@ export class IncidentsService {
     if (newStatus === 'resolved') {
       const lastCheck = await Check.findOne({ apiId: incident.apiId }).sort({ executedAt: -1 });
       if (lastCheck && !lastCheck.passed) {
-        throw new ValidationError(
+        throw new ConflictError(
           'Cannot resolve incident while the target API is actively failing its health check.',
         );
       }
@@ -91,14 +91,24 @@ export class IncidentsService {
   }
 
   /**
-   * List incidents for organization.
+   * List incidents for organization with filter and pagination support.
    */
-  async getIncidentsByOrg(organizationId: string, status?: string): Promise<IIncident[]> {
+  async getIncidentsByOrg(
+    organizationId: string,
+    status?: string,
+    severity?: string,
+    page: number = 1,
+    limit: number = 20,
+  ): Promise<IIncident[]> {
     const query: Record<string, any> = { organizationId };
     if (status) {
       query.status = status;
     }
-    return Incident.find(query).sort({ detectedAt: -1 });
+    if (severity) {
+      query.severity = severity;
+    }
+    const skip = (page - 1) * limit;
+    return Incident.find(query).sort({ detectedAt: -1 }).skip(skip).limit(limit);
   }
 
   /**

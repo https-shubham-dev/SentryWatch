@@ -115,4 +115,51 @@ export class ApisController {
       next(error);
     }
   }
+
+  async getApiChecks(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const organizationId = req.user!.organizationId;
+      const apiId = req.params.id;
+      const page = parseInt((req.query.page as string) || '1', 10);
+      const limit = parseInt((req.query.limit as string) || '20', 10);
+
+      const result = await apisService.getApiChecks(apiId, organizationId, page, limit);
+      res.status(200).json(result);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async getApiStats(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const organizationId = req.user!.organizationId;
+      const apiId = req.params.id;
+
+      const stats = await apisService.getApiStats(apiId, organizationId);
+      res.status(200).json(stats);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async exportApiChecksPdf(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const organizationId = req.user!.organizationId;
+      const apiId = req.params.id;
+      const from = req.query.from as string | undefined;
+      const to = req.query.to as string | undefined;
+
+      const { buffer, filename } = await apisService.exportApiChecksPdf(apiId, organizationId, {
+        from,
+        to,
+      });
+
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      res.setHeader('Content-Length', buffer.length);
+      res.status(200).send(buffer);
+    } catch (error) {
+      next(error);
+    }
+  }
 }

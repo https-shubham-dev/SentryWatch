@@ -11,6 +11,9 @@ router.use(authenticate);
 
 router.get('/', (req, res, next) => controller.getApis(req, res, next));
 router.get('/:id', (req, res, next) => controller.getApiById(req, res, next));
+router.get('/:id/checks/export', (req, res, next) => controller.exportApiChecksPdf(req, res, next));
+router.get('/:id/checks', (req, res, next) => controller.getApiChecks(req, res, next));
+router.get('/:id/stats', (req, res, next) => controller.getApiStats(req, res, next));
 
 // Admin-only mutation routes
 router.post('/', requireRole('admin'), (req, res, next) => controller.createApi(req, res, next));

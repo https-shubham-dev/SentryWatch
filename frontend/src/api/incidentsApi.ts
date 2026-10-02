@@ -17,14 +17,21 @@ export interface IncidentItem {
   severity: IncidentSeverity;
   reason: string;
   detectedAt: string;
+  lastAnomalyAt?: string;
+  anomalyCount?: number;
   resolvedAt: string | null;
   events: IncidentEvent[];
 }
 
 export const incidentsApi = {
-  getIncidents: async (status?: string): Promise<IncidentItem[]> => {
+  getIncidents: async (
+    status?: string,
+    severity?: string,
+    page?: number,
+    limit?: number,
+  ): Promise<IncidentItem[]> => {
     const res = await apiClient.get<IncidentItem[]>('/incidents', {
-      params: { status },
+      params: { status, severity, page, limit },
     });
     return res.data;
   },

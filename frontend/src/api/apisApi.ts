@@ -63,4 +63,27 @@ export const apisApi = {
   deleteApi: async (id: string): Promise<void> => {
     await apiClient.delete(`/apis/${id}`);
   },
+
+  getApiChecks: async (id: string, page: number = 1, limit: number = 20): Promise<any> => {
+    const res = await apiClient.get(`/apis/${id}/checks`, { params: { page, limit } });
+    return res.data;
+  },
+
+  getApiStats: async (id: string): Promise<{
+    avgLatencyMs: number;
+    failureRate: number;
+    totalChecks: number;
+    recentChecks: { executedAt: string; latencyMs: number; passed: boolean }[];
+  }> => {
+    const res = await apiClient.get(`/apis/${id}/stats`);
+    return res.data;
+  },
+
+  exportApiChecksPdf: async (id: string, params?: { from?: string; to?: string }): Promise<Blob> => {
+    const res = await apiClient.get(`/apis/${id}/checks/export`, {
+      params,
+      responseType: 'blob',
+    });
+    return res.data;
+  },
 };
