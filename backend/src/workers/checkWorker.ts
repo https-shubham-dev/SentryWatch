@@ -58,12 +58,13 @@ export async function processCheckJob(jobData: CheckJobData): Promise<void> {
     latencyMs = Date.now() - startTime;
     statusCode = response.status;
     passed = statusCode === api.expectedStatus;
-  } catch (err: any) {
+  } catch (err: unknown) {
     passed = false;
     statusCode = null;
     latencyMs = null;
 
-    if (err.code === 'ECONNABORTED' || err.message?.includes('timeout')) {
+    const axiosErr = err as { code?: string; message?: string };
+    if (axiosErr.code === 'ECONNABORTED' || axiosErr.message?.includes('timeout')) {
       errorType = 'timeout';
     } else {
       errorType = 'network';
@@ -89,8 +90,9 @@ export async function processCheckJob(jobData: CheckJobData): Promise<void> {
       { upsert: true },
     );
     inserted = (updateResult.upsertedCount ?? 0) > 0;
-  } catch (err: any) {
-    if (err.code === 11000 || err.message?.includes('E11000')) {
+  } catch (err: unknown) {
+    const mongoErr = err as { code?: number; message?: string };
+    if (mongoErr.code === 11000 || mongoErr.message?.includes('E11000')) {
       console.warn(
         `[Worker] Idempotency guard activated: Check already exists for API ${apiId} at ${scheduledTime.toISOString()}`,
       );

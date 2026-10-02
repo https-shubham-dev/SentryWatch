@@ -1,3 +1,4 @@
+import mongoose from 'mongoose';
 import { Incident, IIncident, IncidentStatus } from '../../models/Incident.js';
 import { Api } from '../../models/Api.js';
 import { Check } from '../../models/Check.js';
@@ -55,7 +56,7 @@ export class IncidentsService {
     incident.events.push({
       status: newStatus,
       timestamp: new Date(),
-      triggeredBy: userId as any,
+      triggeredBy: new mongoose.Types.ObjectId(userId),
     });
 
     const savedIncident = await incident.save();
@@ -100,7 +101,7 @@ export class IncidentsService {
     page: number = 1,
     limit: number = 20,
   ): Promise<IIncident[]> {
-    const query: Record<string, any> = { organizationId };
+    const query: Record<string, unknown> = { organizationId };
     if (status) {
       query.status = status;
     }

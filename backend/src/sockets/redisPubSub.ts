@@ -6,7 +6,7 @@ export type EventType = 'api:status_changed' | 'incident:created' | 'incident:up
 export interface SystemEvent {
   type: EventType;
   organizationId: string;
-  payload: any;
+  payload: unknown;
 }
 
 const CHANNEL_NAME = 'sentrywatch:events';

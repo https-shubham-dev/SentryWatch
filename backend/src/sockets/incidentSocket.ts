@@ -24,7 +24,7 @@ export function setupSocketServer(httpServer: HttpServer): Server {
 
     try {
       const payload = verifyAccessToken(token);
-      (socket as any).user = payload;
+      (socket as unknown as { user: typeof payload }).user = payload;
       next();
     } catch (_err) {
       return next(new Error('Authentication error: Invalid or expired access token'));
@@ -32,7 +32,7 @@ export function setupSocketServer(httpServer: HttpServer): Server {
   });
 
   io.on('connection', (socket: Socket) => {
-    const user = (socket as any).user;
+    const user = (socket as unknown as { user: { userId: string; organizationId: string } }).user;
     const orgRoom = `org:${user.organizationId}`;
 
     // Join tenant-isolated organization room (architecture.md §6)
